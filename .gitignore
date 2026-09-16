@@ -219,3 +219,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 venv
+# Local database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env.*
+!.env.example

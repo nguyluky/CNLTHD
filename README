@@ -1,0 +1,38 @@
+# CNLTHD API
+
+Backend FastAPI, SQLAlchemy 2 và PostgreSQL; hỗ trợ SQLite khi chạy local.
+Yêu cầu Python 3.13 trở lên, hoặc Docker có Compose.
+
+## Chạy local (Linux/macOS)
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env
+python -m uvicorn app.main:app --reload --env-file .env
+```
+
+Nếu đã có venv thì chỉ cần kích hoạt và cài requirements.
+Mặc định dùng SQLite, tạo file app.db và bảng users khi khởi động.
+.env được Uvicorn nạp qua --env-file; biến môi trường đã export được ưu tiên.
+Có thể đổi DATABASE_URL trong .env để kết nối PostgreSQL đang chạy.
+
+## Chạy bằng Docker
+
+```bash
+docker compose up --build -d
+docker compose logs -f api
+```
+
+Compose chạy API và PostgreSQL, đợi database sẵn sàng trước khi chạy API.
+DATABASE_URL của API được cấu hình riêng trong compose.yaml để dùng service db.
+PostgreSQL lưu dữ liệu trong volume postgres_data, không mở cổng ra host.
+Thông tin đăng nhập trong Compose chỉ dành cho môi trường phát triển.
+Dừng bằng `docker compose down` (giữ dữ liệu); thêm `-v` sẽ xóa dữ liệu database.
+
+## Sử dụng
+
+- API: http://localhost:8000
+- Swagger: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
