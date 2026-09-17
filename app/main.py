@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
+import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 
+from app.core.logger import logger
 from app.core.config import APP_NAME
 from app.db.base import Base
 from app.db.database import engine
 from app.routers import user
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,3 +32,15 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exception: Exception):
+    logger.error(f"Unhandled Exception on {request.method} {request.url}: {exception}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "message": "A system error has occured, please try again later."
+        }
+    )
