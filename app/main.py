@@ -1,5 +1,4 @@
 from contextlib import asynccontextmanager
-import logging
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -8,7 +7,7 @@ from app.core.logger import logger
 from app.core.config import APP_NAME
 from app.db.base import Base
 from app.db.database import engine
-from app.routers import user
+from app.routers import test, user
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -22,7 +21,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan)
 app.include_router(user.router)
-
+app.include_router(test.router)
 
 @app.get("/")
 async def root():
