@@ -1,4 +1,11 @@
 fastapi==0.141.1
 uvicorn[standard]==0.53.0
-SQLAlchemy==2.0.54
+SQLAlchemy[asyncio]==2.0.54
 psycopg[binary]==3.3.5
+pwdlib[argon2]
+PyJWT
+fastapi-redis-sdk
+python-multipart
+aiosqlite
+httpx
+pytest

@@ -13,6 +13,11 @@ cp .env.example .env
 python -m uvicorn app.main:app --reload --env-file .env
 ```
 
+## RUN test
+```bash
+python -m pytest
+```
+
 Nếu đã có venv thì chỉ cần kích hoạt và cài requirements.
 Mặc định dùng SQLite, tạo file app.db và bảng users khi khởi động.
 .env được Uvicorn nạp qua --env-file; biến môi trường đã export được ưu tiên.
