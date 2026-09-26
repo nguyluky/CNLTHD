@@ -72,7 +72,15 @@ class User(Base):
     
     def create_access_token(self, expires_delta: timedelta | None = None) -> str:
         return create_access_token(data={"sub": self.email, "role": self.role.name}, expires_delta=expires_delta)
-    
+
+    # def update_info(self, full_name, phone, email) -> bool:
+    #     if full_name:
+    #         self.full_name = full_name
+    #     if self.phone:
+    #         self.phone = self.phone
+    #     if email:
+    #         self.email = email
+
     def is_admin(self) -> bool:
         return self.role == UserRole.admin
     
@@ -132,7 +140,7 @@ class Booking(Base):
     end_time: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
 
     total_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    status: Mapped[BookingStatus] = mapped_column(Enum(BookingStatus), nullable=False)
+    status: Mapped[BookingStatus] = mapped_column(SAEnum(BookingStatus), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=func.now())
 
     customer: Mapped["User"] = relationship("User", foreign_keys=[customer_id], backref="customer_bookings")
