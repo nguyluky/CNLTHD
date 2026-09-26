@@ -1,32 +1,46 @@
 from contextlib import asynccontextmanager
-import logging
+import http
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from redis_fastapi import FastAPIRedis
 
+from app.core.exception import ErrorModel, ValidationErrorModel
 from app.core.logger import logger
 from app.core.config import APP_NAME
-from app.db.base import Base
-from app.db.database import engine
-from app.routers import user
+from app.core.database import Base
+from app.core.database import engine
+from app.internal import user
+from app.routers import test, auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Router imports register models before creating tables for development.
-    Base.metadata.create_all(bind=engine)
     try:
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
         yield
     finally:
-        engine.dispose()
+        await engine.dispose()
 
 
-app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan)
+app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan, responses={
+    500: {
+        "model": ErrorModel,
+        "description": "Internal Server Error"
+    },
+    422: {
+        "model": ValidationErrorModel,
+        "description": "Validation Error"
+    },
+})
+FastAPIRedis(app).lifespan()
+
 app.include_router(user.router)
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello FastAPI"}
+# app.include_router(test.router)
+app.include_router(auth.router)
 
 
 @app.get("/health")
@@ -42,5 +56,29 @@ async def global_exception_handler(request: Request, exception: Exception):
         content={
             "error_code": "INTERNAL_SERVER_ERROR",
             "message": "A system error has occured, please try again later."
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exception: HTTPException):
+    return JSONResponse(
+        status_code=exception.status_code,
+        content={
+            "error_code": http.HTTPStatus(exception.status_code).name,
+            "message": exception.detail
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc: RequestValidationError):
+    message = "Validation errors:"
+    for error in exc.errors():
+        message += f"\nField: {error['loc']}, Error: {error['msg']}"
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "error_code": "VALIDATION_ERROR",
+            "message": message,
+            "details": exc.errors()
         }
     )
