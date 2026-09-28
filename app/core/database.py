@@ -10,11 +10,11 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import DATABASE_URL
+from app.core.config import config
 from app.core.security import get_password_hash, verify_password
 
 # Preserve existing URLs while selecting an async-capable driver.
-database_url = make_url(DATABASE_URL)
+database_url = make_url(config.DATABASE_URL)
 if database_url.drivername in {"sqlite", "sqlite+pysqlite"}:
     database_url = database_url.set(drivername="sqlite+aiosqlite")
 elif database_url.drivername in {"postgresql", "postgresql+psycopg2"}:

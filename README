@@ -41,3 +41,22 @@ Dừng bằng `docker compose down` (giữ dữ liệu); thêm `-v` sẽ xóa d�
 - API: http://localhost:8000
 - Swagger: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
+
+## CI: build, lint, test
+
+Workflow `.github/workflows/ci.yml` chạy khi push, tạo/cập nhật pull request,
+hoặc chọn Run workflow trong tab Actions (khi workflow đã có trên nhánh mặc định).
+
+- Lint: Ruff kiểm tra lỗi cú pháp, phép so sánh không hợp lệ và tên chưa định nghĩa trong `app/` và `tests/`.
+  Quy tắc được cấu hình trong `ruff.toml`; chưa kiểm tra định dạng hoặc import thừa.
+- Test: pytest chạy trên Python 3.13, dùng SQLite trong bộ nhớ và khóa riêng cho CI;
+  bộ test hiện tại không cần PostgreSQL, Redis hoặc GitHub Secrets.
+- Build: build image từ Dockerfile sau khi lint và test thành công, không push lên registry.
+
+Chạy lint và test tại local sau khi kích hoạt venv:
+
+```bash
+python -m pip install -r requirements.txt -r requirements-lint.txt
+python -m ruff check app tests
+python -m pytest tests -v
+```

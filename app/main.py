@@ -9,7 +9,7 @@ from redis_fastapi import FastAPIRedis
 
 from app.core.exception import ErrorModel, ValidationErrorModel
 from app.core.logger import logger
-from app.core.config import APP_NAME
+from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
 from app.internal import user
@@ -21,12 +21,13 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+            logger.info("Database tables created successfully.")
         yield
     finally:
         await engine.dispose()
 
 
-app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan, responses={
+app = FastAPI(title=config.APP_NAME, version="1.0.0", lifespan=lifespan, responses={
     500: {
         "model": ErrorModel,
         "description": "Internal Server Error"
