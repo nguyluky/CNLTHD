@@ -12,7 +12,8 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get('/me', 
             description="Returns the currently active user's information",
-            response_model=UserOut)
+            response_model=UserOut,
+            status_code=status.HTTP_200_OK)
 async def get_current_user(
     current_user: User = Depends(get_current_active_user),
 ):
@@ -39,8 +40,6 @@ async def update_current_user_password(
     current_user.hash_password(body.new_password)
     db.add(current_user)
     await db.commit()
-
-    return {"message": "Password changed successfully"}
 
 
 @router.patch('/me', 
@@ -89,7 +88,7 @@ async def update_current_user_profile(
                 detail="This email is currently being used by a different user"
             )
 
-        current_user.phone = update_data["email"]
+        current_user.email = update_data["email"]
 
     if "full_name" in update_data:
         current_user.full_name = update_data["full_name"]
