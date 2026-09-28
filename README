@@ -5,7 +5,7 @@ Yêu cầu Python 3.13 trở lên, hoặc Docker có Compose.
 
 ## Chạy local (Linux/macOS)
 
-```bash
+```
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
@@ -14,7 +14,7 @@ python -m uvicorn app.main:app --reload --env-file .env
 ```
 
 ## RUN test
-```bash
+```
 python -m pytest
 ```
 
@@ -25,7 +25,7 @@ Có thể đổi DATABASE_URL trong .env để kết nối PostgreSQL đang ch�
 
 ## Chạy bằng Docker
 
-```bash
+```
 docker compose up --build -d
 docker compose logs -f api
 ```
@@ -41,3 +41,22 @@ Dừng bằng `docker compose down` (giữ dữ liệu); thêm `-v` sẽ xóa d�
 - API: http://localhost:8000
 - Swagger: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
+
+## CI: build, lint, test
+
+Workflow `.github/workflows/ci.yml` chạy khi push, tạo/cập nhật pull request,
+hoặc chọn Run workflow trong tab Actions (khi workflow đã có trên nhánh mặc định).
+
+- Lint: Ruff kiểm tra lỗi cú pháp, phép so sánh không hợp lệ và tên chưa định nghĩa trong `app/` và `tests/`.
+  Quy tắc được cấu hình trong `ruff.toml`; chưa kiểm tra định dạng hoặc import thừa.
+- Test: pytest chạy trên Python 3.13, dùng SQLite trong bộ nhớ và khóa riêng cho CI;
+  bộ test hiện tại không cần PostgreSQL, Redis hoặc GitHub Secrets.
+- Build: build image từ Dockerfile sau khi lint và test thành công, không push lên registry.
+
+Chạy lint và test tại local sau khi kích hoạt venv:
+
+```
+python -m pip install -r requirements.txt -r requirements-lint.txt
+python -m ruff check app tests
+python -m pytest tests -v
+```

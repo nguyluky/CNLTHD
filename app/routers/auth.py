@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import ACCESS_TOKEN_EXPIRE_MINUTES
+from app.core.config import config
 from app.core.database import User, get_db
 from app.core.security import get_password_hash
 
@@ -23,11 +23,21 @@ class RegisterIn(BaseModel):
 class RegisterOut(BaseModel):
     message: str
 
-@router.post("/register", response_model=RegisterOut, status_code=201, responses={409: {"description": "User already exists"}})
+@router.post("/register", 
+             description="Register a new user",
+             response_model=RegisterOut, status_code=201, responses={409: {"description": "User already exists"}})
 async def register(
     body: RegisterIn,
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Register a new user.
+    - **full_name**: Full name of the user
+    - **email**: Email address of the user unique
+    - **password**: Password for the user account
+    - **phone**: Phone number of the user unique
+    """
+
     # check if user already exists
     existing_user = await db.scalar(
         select(User).where(or_(User.email == body.email, User.phone == body.phone))
@@ -65,7 +75,7 @@ async def login(
     if not user.verify_password(body.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    token = user.create_access_token(timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    token = user.create_access_token(timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES))
     return {
         "message": "Login successful",
         "email": user.email,
