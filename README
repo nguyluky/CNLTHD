@@ -5,7 +5,7 @@ Yêu cầu Python 3.13 trở lên, hoặc Docker có Compose.
 
 ## Chạy local (Linux/macOS)
 
-```bash
+```
 python3 -m venv venv
 source venv/bin/activate
 python -m pip install -r requirements.txt
@@ -14,7 +14,7 @@ python -m uvicorn app.main:app --reload --env-file .env
 ```
 
 ## RUN test
-```bash
+```
 python -m pytest
 ```
 
@@ -25,7 +25,7 @@ Có thể đổi DATABASE_URL trong .env để kết nối PostgreSQL đang ch�
 
 ## Chạy bằng Docker
 
-```bash
+```
 docker compose up --build -d
 docker compose logs -f api
 ```
@@ -55,7 +55,7 @@ hoặc chọn Run workflow trong tab Actions (khi workflow đã có trên nhánh
 
 Chạy lint và test tại local sau khi kích hoạt venv:
 
-```bash
+```
 python -m pip install -r requirements.txt -r requirements-lint.txt
 python -m ruff check app tests
 python -m pytest tests -v

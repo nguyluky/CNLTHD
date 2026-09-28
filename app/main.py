@@ -33,7 +33,7 @@ origins = [
     "http://localhost:8080",
 ]
 
-app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan, responses={
+app = FastAPI(title=config.APP_NAME, version="1.0.0", lifespan=lifespan, responses={
     500: {
         "model": ErrorModel,
         "description": "Internal Server Error"
