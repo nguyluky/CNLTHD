@@ -1,44 +1,15 @@
-from unittest.mock import AsyncMock
 from urllib.parse import urlparse
 from uuid import UUID
 
 import pytest
 
-from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-import fakeredis.aioredis
-from redis_fastapi.deps import get_cache_backend
-from redis_fastapi.cache_backend import CacheBackend
 
-from app.core.database import Base, User, get_db
+from app.core.database import User
 from app.core.config import config
-from app.core.email import EmailServiceInterface
 from app.core.security import decode_access_token
-from app.dependencies import get_email_service
-from app.main import app
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
-
-@pytest.fixture
-async def redis_client():
-    async with fakeredis.aioredis.FakeRedis() as redis:
-        yield redis
-
-
-@pytest.fixture
-def cache(redis_client):
-    return CacheBackend(redis_client)
-
-
-@pytest.fixture
-def email_service():
-    return AsyncMock(spec=EmailServiceInterface)
 
 
 def confirmation_token(email_service):
@@ -46,50 +17,13 @@ def confirmation_token(email_service):
     return urlparse(link).path.rsplit("/", 1)[-1]
 
 
-@pytest.fixture
-async def session_factory():
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    try:
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
-        yield async_sessionmaker(engine, autoflush=False, expire_on_commit=False)
-    finally:
-        await engine.dispose()
-
-
-@pytest.fixture
-async def client(session_factory, cache, email_service):
-    async def override_get_db():
-        async with session_factory() as db:
-            yield db
-
-    previous_overrides = app.dependency_overrides.copy()
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_cache_backend] = lambda: cache
-    app.dependency_overrides[get_email_service] = lambda: email_service
-    try:
-        # The fixture owns the test schema; avoid starting the production database lifespan.
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test",
-        ) as client:
-            yield client
-    finally:
-        app.dependency_overrides.clear()
-        app.dependency_overrides.update(previous_overrides)
-
-
-@pytest.fixture
-def user_data():
-    return {
-        "full_name": "Test User",
-        "email": "test@example.com",
-        "password": "testpassword",
-        "phone": "0901234567",
-    }
-
-
 async def test_register_user(
-    client, session_factory, user_data, cache, redis_client, email_service,
+    client,
+    session_factory,
+    user_data,
+    cache,
+    redis_client,
+    email_service,
 ):
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == 201
@@ -110,14 +44,16 @@ async def test_register_user(
         assert await db.scalar(select(func.count()).select_from(User)) == 0
 
 
-async def test_confirm_registration(client, session_factory, user_data, cache, email_service):
+async def test_confirm_registration(
+    client, session_factory, user_data, cache, email_service
+):
     """
-    nghiệm vụ: 
+    nghiệm vụ:
     1. gọi POST /auth/register để tạo token
     2. gọi POST /auth/confirm/{token} để xác nhận đăng ký tạo user trong database
     3. kiểm tra token đã bị xóa khỏi cache và Redis | user đã được tạo trong database
     """
-    
+
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == 201
     token = confirmation_token(email_service)
@@ -142,7 +78,9 @@ async def test_confirm_registration(client, session_factory, user_data, cache, e
 
 
 @pytest.mark.parametrize("duplicate_field", ["email", "phone", "both"])
-async def test_register_existing_user(client, session_factory, user_data, duplicate_field, email_service):
+async def test_register_existing_user(
+    client, session_factory, user_data, duplicate_field, email_service
+):
     """
     nghiệm vụ:
     1. đầu tiên là tạo một user mới bằng cách gọi POST /auth/register
@@ -150,7 +88,7 @@ async def test_register_existing_user(client, session_factory, user_data, duplic
     3. sau đó thử đăng ký một user khác với cùng email hoặc phone hoặc cả hai, và kiểm tra rằng server trả về lỗi 409 Conflict
     4. xác nhận rằng email_service.send_confirmation_email không được gọi và số lượng user trong database vẫn là 1
     """
-    
+
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == 201
 
@@ -176,14 +114,21 @@ async def test_register_existing_user(client, session_factory, user_data, duplic
         assert await db.scalar(select(func.count()).select_from(User)) == 1
 
     # A rejected registration must not break subsequent requests.
-    response = await client.post("/auth/register", json={
-        **user_data, "email": "new@example.com", "phone": "0909999999",
-    })
+    response = await client.post(
+        "/auth/register",
+        json={
+            **user_data,
+            "email": "new@example.com",
+            "phone": "0909999999",
+        },
+    )
     assert response.status_code == 201
 
 
 @pytest.mark.parametrize("missing_field", ["full_name", "email", "password", "phone"])
-async def test_register_missing_field(client, user_data, missing_field, email_service, redis_client):
+async def test_register_missing_field(
+    client, user_data, missing_field, email_service, redis_client
+):
     del user_data[missing_field]
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == 400
@@ -200,7 +145,9 @@ async def test_confirm_unknown_token(client, session_factory):
         assert await db.scalar(select(func.count()).select_from(User)) == 0
 
 
-async def test_confirm_expired_token(client, user_data, email_service, redis_client, session_factory):
+async def test_confirm_expired_token(
+    client, user_data, email_service, redis_client, session_factory
+):
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == 201
     token = confirmation_token(email_service)
@@ -215,19 +162,14 @@ async def test_confirm_expired_token(client, user_data, email_service, redis_cli
         assert await db.scalar(select(func.count()).select_from(User)) == 0
 
 
-@pytest.fixture
-async def registered_user(client, user_data, email_service):
-    response = await client.post("/auth/register", json=user_data)
-    assert response.status_code == 201
-    response = await client.post(f"/auth/confirm/{confirmation_token(email_service)}")
-    assert response.status_code == 200
-    return user_data
-
-
 async def test_login(client, registered_user):
-    response = await client.post("/auth/login", data={
-        "username": registered_user["email"], "password": registered_user["password"],
-    })
+    response = await client.post(
+        "/auth/login",
+        data={
+            "username": registered_user["email"],
+            "password": registered_user["password"],
+        },
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["message"] == "Login successful"
@@ -239,12 +181,17 @@ async def test_login(client, registered_user):
     assert "exp" in payload
 
 
-@pytest.mark.parametrize("field,value", [
-    ("username", "unknown@example.com"), ("password", "wrong-password"),
-])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("username", "unknown@example.com"),
+        ("password", "wrong-password"),
+    ],
+)
 async def test_login_invalid_credentials(client, registered_user, field, value):
     credentials = {
-        "username": registered_user["email"], "password": registered_user["password"],
+        "username": registered_user["email"],
+        "password": registered_user["password"],
     }
     credentials[field] = value
     response = await client.post("/auth/login", data=credentials)
@@ -256,8 +203,12 @@ async def test_login_invalid_credentials(client, registered_user, field, value):
 async def test_login_unconfirmed_user(client, user_data):
     response = await client.post("/auth/register", json=user_data)
     assert response.status_code == 201
-    response = await client.post("/auth/login", data={
-        "username": user_data["email"], "password": user_data["password"],
-    })
+    response = await client.post(
+        "/auth/login",
+        data={
+            "username": user_data["email"],
+            "password": user_data["password"],
+        },
+    )
     assert response.status_code == 401
     assert response.json()["message"] == "Invalid email or password"
