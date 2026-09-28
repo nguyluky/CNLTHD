@@ -38,12 +38,14 @@ app = FastAPI(title=config.APP_NAME, version="1.0.0", lifespan=lifespan, respons
         "model": ErrorModel,
         "description": "Internal Server Error"
     },
-    422: {
+    400: {
         "model": ValidationErrorModel,
         "description": "Validation Error"
     },
 })
-FastAPIRedis(app).lifespan()
+FastAPIRedis(app).lifespan()                    
+FastAPIRedis(app).lifespan().caching()          
+FastAPIRedis(app).lifespan().rate_limiting()
 
 app.add_middleware(
     CORSMiddleware,
@@ -91,7 +93,7 @@ async def validation_exception_handler(request, exc: RequestValidationError):
     for error in exc.errors():
         message += f"\nField: {error['loc']}, Error: {error['msg']}"
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_400_BAD_REQUEST,
         content={
             "error_code": "VALIDATION_ERROR",
             "message": message,

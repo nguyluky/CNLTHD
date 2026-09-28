@@ -8,5 +8,5 @@ fastapi-redis-sdk
 python-multipart
 aiosqlite
 httpx
-pytest
 pydantic-settings
+messagebird-sdk
