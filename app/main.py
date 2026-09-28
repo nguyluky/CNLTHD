@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from redis_fastapi import FastAPIRedis
 
 from app.core.exception import ErrorModel, ValidationErrorModel
@@ -27,7 +28,12 @@ async def lifespan(app: FastAPI):
         await engine.dispose()
 
 
-app = FastAPI(title=config.APP_NAME, version="1.0.0", lifespan=lifespan, responses={
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+]
+
+app = FastAPI(title=APP_NAME, version="1.0.0", lifespan=lifespan, responses={
     500: {
         "model": ErrorModel,
         "description": "Internal Server Error"
@@ -38,6 +44,15 @@ app = FastAPI(title=config.APP_NAME, version="1.0.0", lifespan=lifespan, respons
     },
 })
 FastAPIRedis(app).lifespan()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 app.include_router(user.router)
 # app.include_router(test.router)
