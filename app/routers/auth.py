@@ -21,15 +21,19 @@ from app.dependencies import EmailServiceDep
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/register", 
-            description="Register a new user",
-            response_model=RegisterOut, status_code=201, responses={409: {"description": "User already exists"}})
+@router.post(
+    "/register",
+    description="Register a new user",
+    response_model=RegisterOut,
+    status_code=201,
+    responses={409: {"description": "User already exists"}},
+)
 async def register(
     body: RegisterIn,
     redis: CacheBackendDep,
     db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks,
-    email_service: EmailServiceDep
+    email_service: EmailServiceDep,
 ):
     """
     Register a new user.
@@ -49,21 +53,30 @@ async def register(
     token = str(uuid.uuid4())
 
     redis_key = f"register:{token}"
-    
+
     await redis.set(redis_key, body.model_dump(), ttl=3600, eviction_group="register")
 
     confirmation_link = f"{config.BASE_URL}/auth/confirm/{token}"
-    background_tasks.add_task(email_service.send_confirmation_email, to=body.email, confirmation_link=confirmation_link)
+    background_tasks.add_task(
+        email_service.send_confirmation_email,
+        to=body.email,
+        confirmation_link=confirmation_link,
+    )
 
-    return {"message": "User registered successfully. Please check your email to confirm your registration." }
+    return {
+        "message": "User registered successfully. Please check your email to confirm your registration."
+    }
 
-@router.post("/confirm/{token}", 
-             description="Confirm user registration",
-             response_model=RegisterOut, status_code=200, responses={404: {"description": "Token not found"}})
+
+@router.post(
+    "/confirm/{token}",
+    description="Confirm user registration",
+    response_model=RegisterOut,
+    status_code=200,
+    responses={404: {"description": "Token not found"}},
+)
 async def confirm_registration(
-    token: str,
-    redis: CacheBackendDep,
-    db: AsyncSession = Depends(get_db)
+    token: str, redis: CacheBackendDep, db: AsyncSession = Depends(get_db)
 ):
     """
     Confirm user registration using the token sent to the user's email.
@@ -91,25 +104,26 @@ async def confirm_registration(
 
     return {"message": "User registered successfully"}
 
-@router.post("/login", 
-            description="Login with email and password",
-            response_model=LoginOut, status_code=200)
+
+@router.post(
+    "/login",
+    description="Login with email and password",
+    response_model=LoginOut,
+    status_code=200,
+)
 async def login(
     body: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-
     user = await db.scalar(select(User).where(User.email == body.username))
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
+
     # verify password
     if not user.verify_password(body.password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    token = user.create_access_token(timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES))
-    return {
-        "message": "Login successful",
-        "email": user.email,
-        "access_token": token
-    }
+
+    token = user.create_access_token(
+        timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {"message": "Login successful", "email": user.email, "access_token": token}

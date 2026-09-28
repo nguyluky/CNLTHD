@@ -10,23 +10,28 @@ from app.schemas.user import UpdatePasswordIn, UpdateProfileIn, UserOut
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.get('/me', 
-            description="Returns the currently active user's information",
-            response_model=UserOut,
-            status_code=status.HTTP_200_OK)
+@router.get(
+    "/me",
+    description="Returns the currently active user's information",
+    response_model=UserOut,
+    status_code=status.HTTP_200_OK,
+)
 async def get_current_user(
     current_user: User = Depends(get_current_active_user),
 ):
-    return UserOut.from_orm(current_user)
+    return UserOut.model_validate(current_user)
 
 
-@router.put('/me/password',
-            description="Changes the current user's password",
-            status_code=status.HTTP_204_NO_CONTENT, responses={400: {"description": "Invalid old password"}})
+@router.put(
+    "/me/password",
+    description="Changes the current user's password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={400: {"description": "Invalid old password"}},
+)
 async def update_current_user_password(
     body: UpdatePasswordIn,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Change curret user's password.
@@ -42,13 +47,16 @@ async def update_current_user_password(
     await db.commit()
 
 
-@router.patch('/me', 
-              description="Changes the current user's profile",
-              response_model=UserOut, status_code=status.HTTP_200_OK)
+@router.patch(
+    "/me",
+    description="Changes the current user's profile",
+    response_model=UserOut,
+    status_code=status.HTTP_200_OK,
+)
 async def update_current_user_profile(
     body: UpdateProfileIn,
     current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Change curret user's profile.
@@ -56,36 +64,34 @@ async def update_current_user_profile(
     - **email**: User's email
     - **phone**: User's phone number
     """
-    
+
     update_data = body.model_dump(exclude_unset=True)
 
     if not update_data:
         return current_user
 
     if "phone" in update_data:
-        phone_exists = await db.scalar(select(User).where(
-                User.phone == update_data["phone"]
-            )
+        phone_exists = await db.scalar(
+            select(User).where(User.phone == update_data["phone"])
         )
 
         if phone_exists:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="This phone number is currently being used by a different user"
+                detail="This phone number is currently being used by a different user",
             )
 
         current_user.phone = update_data["phone"]
-        
+
     if "email" in update_data:
-        email_exists = await db.scalar(select(User).where(
-                User.email == update_data["email"]
-            )
+        email_exists = await db.scalar(
+            select(User).where(User.email == update_data["email"])
         )
 
         if email_exists:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="This email is currently being used by a different user"
+                detail="This email is currently being used by a different user",
             )
 
         current_user.email = update_data["email"]

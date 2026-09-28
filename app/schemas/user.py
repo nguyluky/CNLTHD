@@ -13,10 +13,12 @@ class UserOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class UpdateProfileIn(BaseModel):
     full_name: Optional[FullNameStr] = None
     email: Optional[CustomEmailStr] = None
     phone: Optional[CustomPhoneStr] = None
+
 
 class UpdatePasswordIn(BaseModel):
     old_password: str

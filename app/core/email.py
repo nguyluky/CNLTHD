@@ -1,5 +1,3 @@
-
-
 from bird import APIError, AsyncBird
 from app.core.logger import logger
 from app.core.config import config
@@ -7,15 +5,18 @@ from app.core.config import config
 
 # email service abstrac class
 
+
 class EmailServiceInterface:
     async def send_email(self, to: str, subject: str, html: str) -> dict | None:
         raise NotImplementedError
 
-    async def send_confirmation_email(self, to: str, confirmation_link: str) -> dict | None:
+    async def send_confirmation_email(
+        self, to: str, confirmation_link: str
+    ) -> dict | None:
         raise NotImplementedError
 
-class EmailService(EmailServiceInterface):
 
+class EmailService(EmailServiceInterface):
     # static hold instance of EmailService
     instance = None
 
@@ -27,7 +28,9 @@ class EmailService(EmailServiceInterface):
 
     def __init__(self, api_key: str):
         self.client = AsyncBird(api_key=api_key)
-        self.confirmation_email_template = open("email_templates/confirmation.html", "r").read()
+        self.confirmation_email_template = open(
+            "email_templates/confirmation.html", "r"
+        ).read()
 
     async def send_email(self, to: str, subject: str, html: str) -> dict | None:
         """
@@ -43,10 +46,7 @@ class EmailService(EmailServiceInterface):
         """
         try:
             response = await self.client.email.send(
-                from_="noreply@nguyluky.dev",
-                to=[to],
-                subject=subject,
-                html=html
+                from_="noreply@nguyluky.dev", to=[to], subject=subject, html=html
             )
             logger.info(f"Email sent successfully: {response}")
             return {
@@ -57,7 +57,9 @@ class EmailService(EmailServiceInterface):
             logger.error(f"Failed to send email: {e}")
             return None
 
-    async def send_confirmation_email(self, to: str, confirmation_link: str) -> dict | None:
+    async def send_confirmation_email(
+        self, to: str, confirmation_link: str
+    ) -> dict | None:
         """
         Send a confirmation email to the specified recipient.
 
@@ -68,7 +70,9 @@ class EmailService(EmailServiceInterface):
             dict: Response from the Bird API.
         """
         subject = "Please confirm your email address"
-        html_content = self.confirmation_email_template.replace("{{confirmation_link}}", confirmation_link)
+        html_content = self.confirmation_email_template.replace(
+            "{{confirmation_link}}", confirmation_link
+        )
 
         return await self.send_email(to, subject, html_content)
 
@@ -81,8 +85,12 @@ class MockEmailService(EmailServiceInterface):
             "status": "mock_status",
         }
 
-    async def send_confirmation_email(self, to: str, confirmation_link: str) -> dict | None:
-        logger.info(f"Mock send confirmation email to {to} with link '{confirmation_link}'")
+    async def send_confirmation_email(
+        self, to: str, confirmation_link: str
+    ) -> dict | None:
+        logger.info(
+            f"Mock send confirmation email to {to} with link '{confirmation_link}'"
+        )
         return {
             "id": "mock_id",
             "status": "mock_status",
