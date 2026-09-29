@@ -88,13 +88,26 @@ async def http_exception_handler(request: Request, exception: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
     message = "Validation errors:"
+    sanitized_errors = []
+
     for error in exc.errors():
         message += f"\nField: {error['loc']}, Error: {error['msg']}"
+        error_copy = error.copy()
+        
+        if "ctx" in error_copy:
+            error_copy["ctx"] = {
+                k: (str(v) if isinstance(v, Exception) else v)
+                for k, v in error_copy["ctx"].items()
+            }
+            
+        sanitized_errors.append(error_copy)
+
+
     return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         content={
             "error_code": "VALIDATION_ERROR",
             "message": message,
-            "details": exc.errors()
+            "details": sanitized_errors
         }
     )

@@ -2,30 +2,20 @@ from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import config
 from app.core.database import User, get_db
-from app.core.security import get_password_hash
+from app.schemas.auth import LoginOut, RegisterIn, RegisterOut
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-class RegisterIn(BaseModel):
-    full_name: str
-    email: str
-    password: str
-    phone: str
-
-class RegisterOut(BaseModel):
-    message: str
 
 @router.post("/register", 
-             description="Register a new user",
-             response_model=RegisterOut, status_code=201, responses={409: {"description": "User already exists"}})
+            description="Register a new user",
+            response_model=RegisterOut, status_code=201, responses={409: {"description": "User already exists"}})
 async def register(
     body: RegisterIn,
     db: AsyncSession = Depends(get_db)
@@ -55,13 +45,9 @@ async def register(
     return {"message": "User registered successfully"}
 
 
-class LoginOut(BaseModel):
-    message: str
-    email: str
-    access_token: str
-    token_type: str = "bearer"
-
-@router.post("/login", response_model=LoginOut, status_code=200)
+@router.post("/login", 
+            description="Login with email and password",
+            response_model=LoginOut, status_code=200)
 async def login(
     body: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: AsyncSession = Depends(get_db)
