@@ -6,7 +6,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.core.database import Base, User, get_db
+from app.core.database import Base, User, UserRole, get_db
 from app.main import app
 
 pytestmark = pytest.mark.anyio
@@ -56,8 +56,18 @@ def user_data():
     }        
 
 @pytest.fixture
-async def auth_client(client, user_data):
-    await client.post("/auth/register", json=user_data)
+async def auth_client(client, session_factory, user_data):
+
+    async with session_factory() as db:
+        user = User(
+            full_name = user_data["full_name"],
+            email = user_data["email"],
+            phone = user_data["phone"],
+            role=UserRole.customer
+        )
+        user.hash_password(user_data["password"])
+        db.add(user)
+        await db.commit()
 
     #login to get the token
     login_response = await client.post("/auth/login", data={
@@ -86,14 +96,14 @@ async def test_get_user_profile(auth_client, user_data):
 
 async def test_update_profile_success(auth_client, user_data):
     new_profile = {
-        "email": "newtest@example.com",
+        "full_name": "New Test User",
     }
 
     response = await auth_client.patch("/users/me", json=new_profile)
 
     assert response.status_code == 200
     data = response.json()
-    assert data["email"] != user_data["email"]
+    assert data["full_name"] != user_data["full_name"]
 
 async def test_update_profile_fail(auth_client, session_factory, user_data):
     another_user = {
