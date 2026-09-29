@@ -1,10 +1,11 @@
 import pytest
 from sqlalchemy import select
 
-from app.core.database import User
+from app.core.database import Base, User, UserRole, get_db
+from app.main import app
+
 
 pytestmark = pytest.mark.anyio
-
 
 async def test_get_user_profile(auth_client, user_data):
     response = await auth_client.get("/users/me")
@@ -20,14 +21,14 @@ async def test_get_user_profile(auth_client, user_data):
 
 async def test_update_profile_success(auth_client, user_data):
     new_profile = {
-        "email": "newtest@example.com",
+        "full_name": "New Test User",
     }
 
     response = await auth_client.patch("/users/me", json=new_profile)
 
     assert response.status_code == 200
     data = response.json()
-    assert data["email"] != user_data["email"]
+    assert data["full_name"] != user_data["full_name"]
 
 
 async def test_update_profile_fail(
