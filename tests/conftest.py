@@ -10,7 +10,7 @@ from redis_fastapi.cache_backend import CacheBackend
 from redis_fastapi.deps import get_cache_backend
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.core.database import Base, get_db
+from app.core.database import Base, User, UserRole, get_db
 from app.core.email import EmailServiceInterface
 from app.dependencies import get_email_service
 from app.main import app
@@ -104,21 +104,29 @@ async def registered_user(register_user, user_data):
 
 
 @pytest.fixture
-async def auth_client(client, registered_user):
-    response = await client.post(
-        "/auth/login",
-        data={
-            "username": registered_user["email"],
-            "password": registered_user["password"],
-        },
-    )
-    assert response.status_code == 200, response.text
-    previous_authorization = client.headers.get("Authorization")
-    client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
-    try:
-        yield client
-    finally:
-        if previous_authorization is None:
-            client.headers.pop("Authorization", None)
-        else:
-            client.headers["Authorization"] = previous_authorization
+async def auth_client(client, session_factory, user_data):
+
+    async with session_factory() as db:
+        user = User(
+            full_name = user_data["full_name"],
+            email = user_data["email"],
+            phone = user_data["phone"],
+            role=UserRole.customer
+        )
+        user.hash_password(user_data["password"])
+        db.add(user)
+        await db.commit()
+
+    #login to get the token
+    login_response = await client.post("/auth/login", data={
+        "username": user_data["email"],
+        "password": user_data["password"]
+    })
+
+    token = login_response.json()["access_token"]
+
+    client.headers = {"Authorization": f"Bearer {token}"}
+
+    yield client
+
+    client.headers.pop("Authorization", None)
