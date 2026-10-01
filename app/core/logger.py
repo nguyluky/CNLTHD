@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 
+
 class JSONFormatter(logging.Formatter):
     def format(self, record):
         log_obj = {
@@ -10,7 +11,7 @@ class JSONFormatter(logging.Formatter):
             "level": record.levelname,
             "message": record.getMessage(),
             "module": record.module,
-            "func_name": record.funcName 
+            "func_name": record.funcName,
         }
 
         if record.exc_info:
@@ -19,9 +20,9 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_obj, default=str)
 
 
-#logger config
+# logger config
 logger = logging.getLogger("app_logger")
 handler = logging.StreamHandler()
-handler.setFormatter(JSONFormatter())
+# handler.setFormatter(JSONFormatter())
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
