@@ -87,7 +87,6 @@ async def confirm_registration(
     data = await redis.get(redis_key, eviction_group="register")
     await redis.delete(redis_key, eviction_group="register")
     user_data = RegisterIn.model_validate(data) if data else None
-    await redis.delete(redis_key)  # Delete the token from Redis after retrieval
 
     if not user_data:
         raise HTTPException(status_code=404, detail="Token not found or expired")
@@ -98,9 +97,6 @@ async def confirm_registration(
     db.add(user)
     await db.commit()
     await db.refresh(user)
-
-    # delete the token from Redis after successful registration
-    await redis.delete(redis_key)
 
     return {"message": "User registered successfully"}
 
