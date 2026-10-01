@@ -1,15 +1,14 @@
 from datetime import datetime, timedelta
+import math
 from typing import Annotated
-from xml.etree.ElementInclude import DEFAULT_MAX_INCLUSION_DEPTH
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 from app.core.database import Booking, BookingService, BookingStatus, Service, User, UserRole, get_db
+from app.core.exception import  NotFoundException
 from app.dependencies import get_current_active_user, require_roles
 from app.schemas.booking import BookingCreateIn, BookingFilterParam, BookingOut, BookingStatusIn
+from app.schemas.common import PageResponse
 from app.services import booking_service
 
 
@@ -27,14 +26,15 @@ async def get_booking_detail(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    booking = await booking_service.get_booking_detail(booking_id, db)
-
-    if not booking:
+    try:
+        booking = await booking_service.get_booking_by_id(booking_id, db)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking detail not found"
+            detail=str(e)
         )
 
+    # policy check
     is_admin = current_user.is_admin()
     is_owner_customer = current_user.is_customer() and current_user.id == booking.customer_id
     is_assigned_barber = current_user.is_barber() and current_user.id == booking.barber_id
@@ -42,7 +42,7 @@ async def get_booking_detail(
     if not (is_admin or is_owner_customer or is_assigned_barber):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are unauthorized to perform this action"
+            detail="You are not allow to perform this action"
         )
 
     return booking
@@ -50,7 +50,7 @@ async def get_booking_detail(
 @router.get(
     "",
     description="Returns a list of booking, the result varies based on the user's role",
-    response_model=BookingOut,
+    response_model=PageResponse[BookingOut],
     status_code=status.HTTP_200_OK,
 )
 async def get_bookings(
@@ -59,6 +59,8 @@ async def get_bookings(
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Booking)
+
+    # assign query based on user role
     if current_user.is_customer():
         query = query.where(Booking.customer_id == current_user.id)
     elif current_user.is_barber():
@@ -69,25 +71,43 @@ async def get_bookings(
         if filter.barber_id:
             query = query.where(Booking.barber_id == filter.barber_id)
 
+    # apply filter to query
     if filter.booking_date:
         query = query.where(Booking.booking_date == filter.booking_date)
     if filter.status:
         query = query.where(Booking.status == filter.status)
 
-    # pagination
-    offset = (filter.page - 1) * filter.limit
-    query = query.offset(offset).limit(filter.limit).order_by(Booking.created_at.desc())
+    count_query = select(func.count()).select_from(query.subquery())
+    total = await db.scalar(count_query) or 0
 
-    result = await db.scalars(query)
-    booking_result = result.all()
-
-    if not booking_result or len(booking_result) <= 0:
+    if total == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Booking not found"
         ) 
+
+    # pagination
+    offset = (filter.page - 1) * filter.limit
+    paginated_query = query.offset(offset).limit(filter.limit).order_by(Booking.created_at.desc())
+
+    result = await db.scalars(paginated_query)
+    items = result.all()
+
+    #convert to Booking
+    validated_items = [
+        BookingOut.model_validate(booking, from_attributes=True) 
+        for booking in items
+    ]
+
+    pages = math.ceil(total / filter.limit)
     
-    return booking_result
+    return PageResponse[BookingOut](
+        items=validated_items,
+        total=total,
+        page=filter.page,
+        size=filter.limit,
+        pages=pages
+    )
         
 @router.post(
     "",
@@ -110,7 +130,7 @@ async def create_booking(
     if not current_user.is_customer():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are unauthorized to perform this action"
+            detail="You are not allow to perform this action"
         )
     service_result = await db.scalars(
         select(Service).where(Service.id.in_(body.service_ids))
@@ -156,7 +176,6 @@ async def create_booking(
 @router.patch(
     "/{booking_id}/status",
     description="Changes the booking status",
-    response_model=BookingOut,
     status_code=status.HTTP_200_OK,
 )
 async def update_booking_status(
@@ -165,48 +184,53 @@ async def update_booking_status(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber)),
     db: AsyncSession = Depends(get_db),
 ):
-    booking = await booking_service.get_booking_detail(booking_id, db)
-    
-    if not booking:
+    try:
+        booking = await booking_service.get_booking_by_id(booking_id, db)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking detail not found"
+            detail=str(e)
         )
 
+    # policy check
     is_admin = current_user.is_admin()
     is_assigned_barber = current_user.is_barber() and current_user.id == booking.barber_id
 
     if not (is_admin or is_assigned_barber):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are unauthorized to perform this action"
+            detail="You are not allow to perform this action"
         )
 
-    booking.status = body.status
-    await db.commit()
-    await db.refresh(booking)
+    await booking_service.update_booking_status(booking, body.status, db)
 
-    return booking
+    return {"message:" "Update Booking Successfully"}
 
 @router.patch(
     "/{booking_id}/cancel",
-    description="Updates the booking status to cancelled",
-    response_model=BookingOut,
+    description="Updates the booking status to cancelled, unless the booking was completed",
     status_code=status.HTTP_200_OK,
 )
-async def cancle_booking(
+async def cancel_booking(
     booking_id: int,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    booking = await booking_service.get_booking_detail(booking_id, db)
-    
-    if not booking:
+    try:
+        booking = await booking_service.get_booking_by_id(booking_id, db)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking detail not found"
+            detail=str(e)
         )
 
+    if booking.status is BookingStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel completed booking"
+        )
+
+    # policy check
     is_admin = current_user.is_admin()
     is_owner_customer = current_user.is_customer() and current_user.id == booking.customer_id
     is_assigned_barber = current_user.is_barber() and current_user.id == booking.barber_id
@@ -214,11 +238,9 @@ async def cancle_booking(
     if not (is_admin or is_owner_customer or is_assigned_barber):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are unauthorized to perform this action"
+            detail="You are not allow to perform this action"
         )
 
-    booking.status = BookingStatus.cancelled
-    await db.commit()
-    await db.refresh(booking)
-
-    return booking
+    await booking_service.update_booking_status(booking, BookingStatus.cancelled, db)
+    
+    return {"message:" "Cancel Booking Successfully"}

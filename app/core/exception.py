@@ -9,3 +9,6 @@ class ErrorModel(BaseModel):
 
 class ValidationErrorModel(ErrorModel):
     details: list[dict] | None = None
+
+class NotFoundException(Exception):
+    pass

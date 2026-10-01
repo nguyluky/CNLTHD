@@ -2,7 +2,7 @@ from datetime import date, time, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.database import BookingStatus
 
@@ -53,8 +53,8 @@ class BookingOut(BaseModel):
     end_time: time
     total_price: Decimal = Field(..., ge=0, max_digits=10, decimal_places=2)
     status: BookingStatus
-    created_at: datetime
 
+    model_config = ConfigDict(from_attributes=True)
     model_config = {
             "json_schema_extra": {
                 "examples": [
@@ -67,7 +67,6 @@ class BookingOut(BaseModel):
                         "end_time": "14:50:00",
                         "total_price": 110000,
                         "status": "pending",
-                        "created_at": "14:00:00" 
                     }
                 ]
             }
