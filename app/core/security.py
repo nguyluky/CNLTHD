@@ -7,33 +7,35 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from pwdlib import PasswordHash
+import hashlib
+
 
 from app.core.config import config
 
-password_hash = PasswordHash.recommended()
+hash = PasswordHash.recommended()
 
 
 def verify_password(plain_password, hashed_password):
-    return password_hash.verify(plain_password, hashed_password)
+    return hash.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password):
-    return password_hash.hash(password)
+def get_password_hash(text):
+    return hash.hash(text)
 
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
+def hash_sha256(text: str) -> str:
+    """Hash a string using SHA256."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+    expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
     return encoded_jwt
 
 
-def decode_access_token(token: str):
+def decode_token(token: str):
     payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
     return payload

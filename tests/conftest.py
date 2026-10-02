@@ -105,23 +105,22 @@ async def registered_user(register_user, user_data):
 
 @pytest.fixture
 async def auth_client(client, session_factory, user_data):
-
     async with session_factory() as db:
         user = User(
-            full_name = user_data["full_name"],
-            email = user_data["email"],
-            phone = user_data["phone"],
-            role=UserRole.customer
+            full_name=user_data["full_name"],
+            email=user_data["email"],
+            phone=user_data["phone"],
+            role=UserRole.customer,
         )
         user.hash_password(user_data["password"])
         db.add(user)
         await db.commit()
 
-    #login to get the token
-    login_response = await client.post("/auth/login", data={
-        "username": user_data["email"],
-        "password": user_data["password"]
-    })
+    # login to get the token
+    login_response = await client.post(
+        "/auth/login",
+        data={"username": user_data["email"], "password": user_data["password"]},
+    )
 
     token = login_response.json()["access_token"]
 

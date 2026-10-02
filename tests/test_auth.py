@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from app.core.database import User
 from app.core.config import config
-from app.core.security import decode_access_token
+from app.core.security import decode_token
 
 pytestmark = pytest.mark.anyio
 
@@ -175,7 +175,7 @@ async def test_login(client, registered_user):
     assert body["message"] == "Login successful"
     assert body["email"] == registered_user["email"]
     assert body["token_type"] == "bearer"
-    payload = decode_access_token(body["access_token"])
+    payload = decode_token(body["access_token"])
     assert payload["sub"] == registered_user["email"]
     assert payload["role"] == "customer"
     assert "exp" in payload

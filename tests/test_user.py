@@ -7,6 +7,7 @@ from app.main import app
 
 pytestmark = pytest.mark.anyio
 
+
 async def test_get_user_profile(auth_client, user_data):
     response = await auth_client.get("/users/me")
 

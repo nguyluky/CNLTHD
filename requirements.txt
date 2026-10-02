@@ -10,3 +10,4 @@ aiosqlite
 httpx
 pydantic-settings
 messagebird-sdk
+user-agents

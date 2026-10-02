@@ -13,7 +13,7 @@ from app.core.logger import logger
 from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
-from app.internal import user
+from app.internal import admin, user
 from app.routers import test, auth
 
 
@@ -59,6 +59,7 @@ app.add_middleware(
 app.include_router(user.router)
 # app.include_router(test.router)
 app.include_router(auth.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
