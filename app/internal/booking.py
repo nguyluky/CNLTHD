@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import Booking, BookingService, BookingStatus, Service, User, UserRole, get_db
-from app.core.exception import  NotFoundException
+from app.core.exception import  NotFoundException, RequestedServiceForBookingNotFound
 from app.dependencies import get_current_active_user, require_roles
 from app.schemas.booking import BookingCreateIn, BookingFilterParam, BookingOut, BookingScheduleIn, BookingStatusIn
 from app.schemas.common import PageResponse
@@ -58,48 +58,19 @@ async def get_bookings(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Booking)
-
-    # assign query based on user role
-    if current_user.is_customer():
-        query = query.where(Booking.customer_id == current_user.id)
-    elif current_user.is_barber():
-        query = query.where(Booking.barber_id == current_user.id)
-    elif current_user.is_admin():
-        if filter.customer_id:
-            query = query.where(Booking.customer_id == filter.customer_id)
-        if filter.barber_id:
-            query = query.where(Booking.barber_id == filter.barber_id)
-
-    # apply filter to query
-    if filter.booking_date:
-        query = query.where(Booking.booking_date == filter.booking_date)
-    if filter.status:
-        query = query.where(Booking.status == filter.status)
-
-    count_query = select(func.count()).select_from(query.subquery())
-    total = await db.scalar(count_query) or 0
-
-    if total == 0:
+    try:
+        items, total, pages = await booking_service.get_bookings_with_filter(filter=filter, current_user=current_user, db=db)
+    except NotFoundException as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Booking not found"
-        ) 
-
-    # pagination
-    offset = (filter.page - 1) * filter.limit
-    paginated_query = query.offset(offset).limit(filter.limit).order_by(Booking.created_at.desc())
-
-    result = await db.scalars(paginated_query)
-    items = result.all()
+            detail=str(e)
+        )
 
     #convert to Booking
     validated_items = [
         BookingOut.model_validate(booking, from_attributes=True) 
         for booking in items
     ]
-
-    pages = math.ceil(total / filter.limit)
     
     return PageResponse[BookingOut](
         items=validated_items,
@@ -127,45 +98,17 @@ async def create_booking(
     - **start_time**: Choosen time of the day the booking is scheduled
     - **service_ids**: List of choosen service ids
     """
-    service_result = await db.scalars(
-        select(Service).where(Service.id.in_(body.service_ids))
-    )
 
-    services = service_result.all()
-    if len(services) != len(body.service_ids):
+    create_data = body.model_dump()
+
+    try:
+        booking = await booking_service.create_booking(current_user=current_user, body=create_data, db=db)
+    except RequestedServiceForBookingNotFound as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="One of the services does not exist"
+            detail=str(e)
         )
     
-    total_price = sum(s.price for s in services)
-    total_duration = sum(s.duration_minutes for s in services)
-
-    start_dt = datetime.combine(body.booking_date, body.start_time)
-    end_dt = start_dt + timedelta(minutes=total_duration)
-    end_time = end_dt.time()
-
-    booking = Booking(
-        customer_id = current_user.id,
-        **body.model_dump(exclude={"service_ids"}),
-        end_time = end_time,
-        total_price = total_price,
-        status = BookingStatus.pending
-    )
-
-    db.add(booking)
-    await db.flush()
-
-    # create booking_services
-    for service in services:
-        booking_service = BookingService(
-            booking_id = booking.id,
-            service_id = service.id,
-            price_at_booking = service.price
-        )
-        db.add(booking_service)
-
-    await db.commit()
     return booking
 
 @router.patch(

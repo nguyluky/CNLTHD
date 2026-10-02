@@ -12,3 +12,6 @@ class ValidationErrorModel(ErrorModel):
 
 class NotFoundException(Exception):
     pass
+
+class RequestedServiceForBookingNotFound(Exception):
+    pass
