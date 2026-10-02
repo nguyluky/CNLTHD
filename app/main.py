@@ -13,8 +13,8 @@ from app.core.logger import logger
 from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
-from app.internal import user
-from app.routers import test, auth
+from app.internal import user, services as services_internal, barber_schedule as barber_schedule_internal
+from app.routers import test, auth, services as services_router, barber as barber_router
 
 
 @asynccontextmanager
@@ -59,7 +59,8 @@ app.add_middleware(
 app.include_router(user.router)
 # app.include_router(test.router)
 app.include_router(auth.router)
-
+app.include_router(services_router.router)
+app.include_router(services_internal.router)
 
 @app.get("/health")
 async def health():
