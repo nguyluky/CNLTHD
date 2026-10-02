@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.database import BookingStatus
 
+
 class BookingFilterParam(BaseModel):
     booking_date: Optional[date] = None
     status: Optional[BookingStatus] = None
@@ -14,8 +15,10 @@ class BookingFilterParam(BaseModel):
     page: int = 1
     limit: int = 10
 
+
 class BookingStatusIn(BaseModel):
     status: BookingStatus
+
 
 class BookingScheduleIn(BaseModel):
     booking_date: Optional[date] = None
@@ -38,12 +41,15 @@ class BookingScheduleIn(BaseModel):
             ]
         }
     }
-    
+
+
 class BookingCreateIn(BaseModel):
     barber_id: int = Field(..., description="barber's id")
     booking_date: date = Field(..., description="booking date(YYYY-MM-DD)")
     start_time: time = Field(..., description="booking starts at")
-    service_ids: list[int] = Field(..., min_length=1,  description="list of seleted service's ids")
+    service_ids: list[int] = Field(
+        ..., min_length=1, description="list of seleted service's ids"
+    )
 
     @field_validator("booking_date")
     @classmethod
@@ -59,7 +65,7 @@ class BookingCreateIn(BaseModel):
                     "barber_id": 1,
                     "booking_date": "2026-10-01",
                     "start_time": "14:00:00",
-                    "service_ids": [1, 2]
+                    "service_ids": [1, 2],
                 }
             ]
         }
@@ -78,19 +84,18 @@ class BookingOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
     model_config = {
-            "json_schema_extra": {
-                "examples": [
-                    {
-                        "id": 1,
-                        "customer_id": 1,
-                        "barber_id": 1,
-                        "booking_date": "2026-10-01",
-                        "start_time": "14:00:00",
-                        "end_time": "14:50:00",
-                        "total_price": 110000,
-                        "status": "pending",
-                    }
-                ]
-            }
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "id": 1,
+                    "customer_id": 1,
+                    "barber_id": 1,
+                    "booking_date": "2026-10-01",
+                    "start_time": "14:00:00",
+                    "end_time": "14:50:00",
+                    "total_price": 110000,
+                    "status": "pending",
+                }
+            ]
         }
-
+    }

@@ -1,4 +1,3 @@
-from fastapi import HTTPException
 from pydantic import BaseModel
 
 
@@ -10,8 +9,10 @@ class ErrorModel(BaseModel):
 class ValidationErrorModel(ErrorModel):
     details: list[dict] | None = None
 
+
 class NotFoundException(Exception):
     pass
+
 
 class RequestedServiceForBookingNotFound(Exception):
     pass
