@@ -13,8 +13,8 @@ from app.core.logger import logger
 from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
-from app.internal import user, services as services_internal, barber_schedule as barber_schedule_internal
-from app.routers import test, auth, services as services_router, barber as barber_router
+from app.internal import user, services as services_internal
+from app.routers import test, auth, services as services_router
 
 
 @asynccontextmanager
