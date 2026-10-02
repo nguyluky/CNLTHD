@@ -16,6 +16,28 @@ class BookingFilterParam(BaseModel):
 
 class BookingStatusIn(BaseModel):
     status: BookingStatus
+
+class BookingScheduleIn(BaseModel):
+    booking_date: Optional[date] = None
+    start_time: Optional[time] = None
+
+    @field_validator("booking_date")
+    @classmethod
+    def validate_booking_date(cls, v: date) -> date:
+        if v < date.today():
+            raise ValueError("booking date can not be from the past")
+        return v
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "booking_date": "2026-10-01",
+                    "start_time": "14:00:00",
+                }
+            ]
+        }
+    }
     
 class BookingCreateIn(BaseModel):
     barber_id: int = Field(..., description="barber's id")

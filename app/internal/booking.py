@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import Booking, BookingService, BookingStatus, Service, User, UserRole, get_db
 from app.core.exception import  NotFoundException
 from app.dependencies import get_current_active_user, require_roles
-from app.schemas.booking import BookingCreateIn, BookingFilterParam, BookingOut, BookingStatusIn
+from app.schemas.booking import BookingCreateIn, BookingFilterParam, BookingOut, BookingScheduleIn, BookingStatusIn
 from app.schemas.common import PageResponse
 from app.services import booking_service
 
@@ -127,11 +127,6 @@ async def create_booking(
     - **start_time**: Choosen time of the day the booking is scheduled
     - **service_ids**: List of choosen service ids
     """
-    if not current_user.is_customer():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allow to perform this action"
-        )
     service_result = await db.scalars(
         select(Service).where(Service.id.in_(body.service_ids))
     )
@@ -184,6 +179,11 @@ async def update_booking_status(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber)),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Update booking status.
+    - **status**: new status for booking
+    """
+    
     try:
         booking = await booking_service.get_booking_by_id(booking_id, db)
     except NotFoundException as e:
@@ -244,3 +244,44 @@ async def cancel_booking(
     await booking_service.update_booking_status(booking, BookingStatus.cancelled, db)
     
     return {"message": "Cancel Booking successfully"}
+
+@router.patch(
+    "/{booking_id}/reschedule",
+    description="Allows owner customers and admins to change the date and time of booking",
+    status_code=status.HTTP_200_OK,
+)
+async def update_booking_schedule(
+    booking_id: int,
+    body: BookingScheduleIn,
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.customer)),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reschedule booking.
+    - **booking_date**: Optional new booking date
+    - **start_time**: Optional new time of the day the booking is scheduled
+    """
+    
+    try:
+        booking = await booking_service.get_booking_by_id(booking_id, db)
+    except NotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+    # policy check
+    is_admin = current_user.is_admin()
+    is_owner_customer = current_user.is_customer() and current_user.id == booking.customer_id
+
+    if not (is_admin or is_owner_customer):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allow to perform this action"
+        )
+
+    update_data = body.model_dump(exclude_unset=True)
+
+    await booking_service.update_booking_schedule(booking=booking, update_data=update_data, db=db)
+
+    return {"message": "Reschedule Booking successfully"}
