@@ -204,7 +204,7 @@ async def update_booking_status(
 
     await booking_service.update_booking_status(booking, body.status, db)
 
-    return {"message:" "Update Booking Successfully"}
+    return {"message": "Update Booking status successfully"}
 
 @router.patch(
     "/{booking_id}/cancel",
@@ -243,4 +243,4 @@ async def cancel_booking(
 
     await booking_service.update_booking_status(booking, BookingStatus.cancelled, db)
     
-    return {"message:" "Cancel Booking Successfully"}
+    return {"message": "Cancel Booking successfully"}
