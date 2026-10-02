@@ -1,7 +1,7 @@
-from datetime import date, time, timedelta
-import json
+from datetime import date, datetime, time, timedelta
 import pytest
-from app.core.database import Booking, BookingStatus, Service
+from sqlalchemy import select
+from app.core.database import Booking, BookingService, BookingStatus, Service
 
 pytestmark = pytest.mark.anyio
 
@@ -129,6 +129,11 @@ async def test_cancel_booking_with_owner_customer(
     data = response.json()
     assert data["message"] == "Cancel Booking successfully"
 
+    # making sure the status actually changed
+    async with session_factory() as db:
+        result = (await db.scalars(select(Booking).where(Booking.id == booking.id))).first()
+        assert result.status == BookingStatus.cancelled
+
 async def test_cancel_booking_fail_bad_request(
     create_auth_client_for_user, customer_user, barber_user, session_factory
 ):
@@ -140,6 +145,11 @@ async def test_cancel_booking_fail_bad_request(
     customer_client = await create_auth_client_for_user(customer_user)
     response = await customer_client.patch(f"/bookings/{booking.id}/cancel")
     assert response.status_code == 400
+
+    # making sure the status stays the same
+    async with session_factory() as db:
+        result = (await db.scalars(select(Booking).where(Booking.id == booking.id))).first()
+        assert result.status == BookingStatus.completed
 
 async def test_update_status_booking_with_admin(
     create_auth_client_for_user, admin_user, barber_user, session_factory
@@ -157,6 +167,80 @@ async def test_update_status_booking_with_admin(
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "Update Booking status successfully"
+
+    # making sure the status actually changed
+    async with session_factory() as db:
+        result = (await db.scalars(select(Booking).where(Booking.id == booking.id))).first()
+        assert result.status == BookingStatus.confirmed
+
+async def test_reschedule_booking_with_owner_customer(
+    create_auth_client_for_user, customer_user, barber_user, session_factory, sample_service
+):
+    booking = booking_single(customer_user, barber_user)
+    booking_service = BookingService(id=1, booking_id=booking.id, service_id=sample_service.id, price_at_booking=sample_service.price)
+    async with session_factory() as db:
+        db.add_all([booking, booking_service])
+        await db.commit()
+
+    payload = {
+        "start_time": "17:00:00",
+    }
+
+    customer_client = await create_auth_client_for_user(customer_user)
+    response = await customer_client.patch(f"/bookings/{booking.id}/reschedule", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Reschedule Booking successfully"
+
+    # making sure the time actually changed
+    async with session_factory() as db:
+        result = (await db.scalars(select(Booking).where(Booking.id == booking.id))).first()
+        assert str(result.start_time) ==  "17:00:00"
+        assert str(result.end_time) == "17:30:00"
+
+async def test_reschedule_booking_fail_with_not_found(
+    create_auth_client_for_user, customer_user, barber_user, session_factory
+):
+    booking = booking_single(customer_user, barber_user)
+    async with session_factory() as db:
+        db.add(booking)
+        await db.commit()
+
+    payload = {
+        "start_time": "17:00:00",
+    }
+
+    customer_client = await create_auth_client_for_user(customer_user)
+    response = await customer_client.patch(f"/bookings/{2}/reschedule", json=payload)
+    assert response.status_code == 404
+
+    # making sure the schedule stays the same
+    async with session_factory() as db:
+        result = (await db.scalars(select(Booking).where(Booking.id == booking.id))).first()
+        assert str(result.start_time) ==  str(booking.start_time)
+        assert str(result.end_time) == str(booking.end_time)
+
+async def test_reschedule_booking_fail_with_forbidden(
+    create_auth_client_for_user, customer_user, barber_user, session_factory
+):
+    booking = booking_single(customer_user, barber_user)
+    async with session_factory() as db:
+        db.add(booking)
+        await db.commit()
+
+    payload = {
+        "start_time": "17:00:00",
+    }
+
+    barber_client = await create_auth_client_for_user(barber_user)
+    response = await barber_client.patch(f"/bookings/{booking.id}/reschedule", json=payload)
+    assert response.status_code == 403
+
+    # making sure the schedule stays the same
+    async with session_factory() as db:
+        result = (await db.scalars(select(Booking).where(Booking.id == booking.id))).first()
+        assert str(result.start_time) ==  str(booking.start_time)
+        assert str(result.end_time) == str(booking.end_time)
 
 
     
