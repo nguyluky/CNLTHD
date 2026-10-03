@@ -20,12 +20,12 @@ def confirmation_token(email_service):
 async def test_register_user(
     client,
     session_factory,
-    user_data,
+    customer_data,
     cache,
     redis_client,
     email_service,
 ):
-    response = await client.post("/auth/register", json=user_data)
+    response = await client.post("/auth/register", json=customer_data)
     assert response.status_code == 201
     assert response.json() == {
         "message": "User registered successfully. Please check your email to confirm your registration."
@@ -33,10 +33,10 @@ async def test_register_user(
     token = confirmation_token(email_service)
     assert str(UUID(token)) == token
     email_service.send_confirmation_email.assert_awaited_once_with(
-        to=user_data["email"],
+        to=customer_data["email"],
         confirmation_link=f"{config.BASE_URL}/auth/confirm/{token}",
     )
-    assert await cache.get(f"register:{token}", eviction_group="register") == user_data
+    assert await cache.get(f"register:{token}", eviction_group="register") == customer_data
     keys = await redis_client.keys(f"*register:{token}")
     assert len(keys) == 1
     assert 0 < await redis_client.ttl(keys[0]) <= 3600
@@ -45,7 +45,7 @@ async def test_register_user(
 
 
 async def test_confirm_registration(
-    client, session_factory, user_data, cache, email_service
+    client, session_factory, customer_data, cache, email_service
 ):
     """
     nghiệm vụ:
@@ -54,7 +54,7 @@ async def test_confirm_registration(
     3. kiểm tra token đã bị xóa khỏi cache và Redis | user đã được tạo trong database
     """
 
-    response = await client.post("/auth/register", json=user_data)
+    response = await client.post("/auth/register", json=customer_data)
     assert response.status_code == 201
     token = confirmation_token(email_service)
     response = await client.post(f"/auth/confirm/{token}")
@@ -63,12 +63,12 @@ async def test_confirm_registration(
     assert await cache.get(f"register:{token}", eviction_group="register") is None
 
     async with session_factory() as db:
-        user = await db.scalar(select(User).where(User.email == user_data["email"]))
+        user = await db.scalar(select(User).where(User.email == customer_data["email"]))
         assert user is not None
-        assert user.full_name == user_data["full_name"]
-        assert user.phone == user_data["phone"]
-        assert user.hashed_password != user_data["password"]
-        assert user.verify_password(user_data["password"])
+        assert user.full_name == customer_data["full_name"]
+        assert user.phone == customer_data["phone"]
+        assert user.hashed_password != customer_data["password"]
+        assert user.verify_password(customer_data["password"])
 
     response = await client.post(f"/auth/confirm/{token}")
     assert response.status_code == 404
@@ -79,7 +79,7 @@ async def test_confirm_registration(
 
 @pytest.mark.parametrize("duplicate_field", ["email", "phone", "both"])
 async def test_register_existing_user(
-    client, session_factory, user_data, duplicate_field, email_service
+    client, session_factory, customer_data, duplicate_field, email_service
 ):
     """
     nghiệm vụ:
@@ -89,7 +89,7 @@ async def test_register_existing_user(
     4. xác nhận rằng email_service.send_confirmation_email không được gọi và số lượng user trong database vẫn là 1
     """
 
-    response = await client.post("/auth/register", json=user_data)
+    response = await client.post("/auth/register", json=customer_data)
     assert response.status_code == 201
 
     response = await client.post(f"/auth/confirm/{confirmation_token(email_service)}")
@@ -97,14 +97,14 @@ async def test_register_existing_user(
     email_service.reset_mock()
 
     other_user = {
-        **user_data,
+        **customer_data,
         "full_name": "Another User",
         "email": "another@example.com",
         "phone": "0907654321",
     }
     for field in ("email", "phone"):
         if duplicate_field in (field, "both"):
-            other_user[field] = user_data[field]
+            other_user[field] = customer_data[field]
 
     response = await client.post("/auth/register", json=other_user)
     assert response.status_code == 409
@@ -117,7 +117,7 @@ async def test_register_existing_user(
     response = await client.post(
         "/auth/register",
         json={
-            **user_data,
+            **customer_data,
             "email": "new@example.com",
             "phone": "0909999999",
         },
@@ -127,10 +127,10 @@ async def test_register_existing_user(
 
 @pytest.mark.parametrize("missing_field", ["full_name", "email", "password", "phone"])
 async def test_register_missing_field(
-    client, user_data, missing_field, email_service, redis_client
+    client, customer_data, missing_field, email_service, redis_client
 ):
-    del user_data[missing_field]
-    response = await client.post("/auth/register", json=user_data)
+    del customer_data[missing_field]
+    response = await client.post("/auth/register", json=customer_data)
     assert response.status_code == 400
     assert response.json()["error_code"] == "VALIDATION_ERROR"
     email_service.send_confirmation_email.assert_not_awaited()
@@ -146,9 +146,9 @@ async def test_confirm_unknown_token(client, session_factory):
 
 
 async def test_confirm_expired_token(
-    client, user_data, email_service, redis_client, session_factory
+    client, customer_data, email_service, redis_client, session_factory
 ):
-    response = await client.post("/auth/register", json=user_data)
+    response = await client.post("/auth/register", json=customer_data)
     assert response.status_code == 201
     token = confirmation_token(email_service)
     keys = await redis_client.keys(f"*register:{token}")
@@ -200,14 +200,14 @@ async def test_login_invalid_credentials(client, registered_user, field, value):
     assert "access_token" not in response.json()
 
 
-async def test_login_unconfirmed_user(client, user_data):
-    response = await client.post("/auth/register", json=user_data)
+async def test_login_unconfirmed_user(client, customer_data):
+    response = await client.post("/auth/register", json=customer_data)
     assert response.status_code == 201
     response = await client.post(
         "/auth/login",
         data={
-            "username": user_data["email"],
-            "password": user_data["password"],
+            "username": customer_data["email"],
+            "password": customer_data["password"],
         },
     )
     assert response.status_code == 401

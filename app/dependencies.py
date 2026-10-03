@@ -6,7 +6,7 @@ from fastapi import status
 
 from fastapi.security import OAuth2PasswordBearer
 
-from app.core.database import User, get_db
+from app.core.database import User, UserRole, get_db
 from app.core.security import decode_access_token
 from app.core.config import config
 from app.core.email import EmailServiceInterface, EmailService, MockEmailService
@@ -52,6 +52,16 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 def get_email_service() -> EmailServiceInterface:
     # return EmailService.get_instance(api_key=config.BIRD_API_KEY)
     return MockEmailService()  # Use the mock service for testing
+
+def require_roles(*allows_roles: UserRole):
+    async def check_role(current_user: User = Depends(get_current_active_user)) -> User:
+        if current_user.role not in allows_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are unauthorized to perform this action"
+            )
+        return current_user
+    return check_role
 
 
 EmailServiceDep = Annotated[EmailServiceInterface, Depends(get_email_service)]
