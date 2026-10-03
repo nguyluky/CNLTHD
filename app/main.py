@@ -14,7 +14,7 @@ from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
 from app.internal import user, booking
-from app.routers import test, auth
+from app.routers import test, auth, barber
 
 
 @asynccontextmanager
@@ -60,9 +60,7 @@ app.include_router(user.router)
 app.include_router(booking.router)
 # app.include_router(test.router)
 app.include_router(auth.router)
-app.include_router(services_router.router)
-app.include_router(services_internal.router)
-app.include_router(barber_router.router)
+app.include_router(barber.router)
 
 @app.get("/health")
 async def health():
