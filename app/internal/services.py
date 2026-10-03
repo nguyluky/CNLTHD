@@ -43,7 +43,7 @@ async def get_services(
     )
 
 @router.get(
-    "{service_id}",
+    "/{service_id}",
     description="Get a service by ID for admin",
     response_model=ServiceOutForPrivate,
     status_code=status.HTTP_200_OK,
@@ -59,7 +59,10 @@ async def get_service_by_id(
     try:
         service = await services_service.get_service_by_id(service_id, db=db)
     except NotFoundException as e:
-        raise e
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     
     return service
 
