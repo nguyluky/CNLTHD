@@ -13,8 +13,8 @@ from app.core.logger import logger
 from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
-from app.internal import user, services as services_internal
-from app.routers import test, auth, services as services_router, barber as barber_router
+from app.internal import user, booking
+from app.routers import test, auth
 
 
 @asynccontextmanager
@@ -57,6 +57,7 @@ app.add_middleware(
 
 
 app.include_router(user.router)
+app.include_router(booking.router)
 # app.include_router(test.router)
 app.include_router(auth.router)
 app.include_router(services_router.router)
