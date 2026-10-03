@@ -1,41 +1,37 @@
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.core.exception import NotFoundException
 from app.core.database import BarberSchedule, UserRole, get_db, User
 from app.schemas.barber_schedule import BarberScheduleResponse, BarberScheduleCreate, BarberScheduleUpdate
-from app.dependencies import get_current_active_user
+from app.dependencies import get_current_active_user, require_roles
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from app.services import barber_schedule_service
 
 router = APIRouter(prefix="/barber_schedules", tags=["Barber Schedule"])
 
-def check_barber_permission(current_user: User, barber_id: int):
-    if not current_user.is_admin():
-        if not current_user.is_barber() or current_user.id != barber_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to access this resource"
-            )
+# @router.get(
+#     "/{barber_id}/schedules",
+#     description="Get barber schedules for the current barber or admin",
+#     response_model=list[BarberScheduleResponse],
+#     status_code=status.HTTP_200_OK,
+# )
+# async def get_barber_schedules(
+#     barber_id: int,
+#     db: AsyncSession = Depends(get_db),
+#     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
+#     ):
+#     """
+#     Get barber schedules for the current barber or admin.
+#     """
 
-@router.get(
-    "/{barber_id}/schedules",
-    description="Get barber schedules for the current barber or admin",
-    response_model=list[BarberScheduleResponse],
-    status_code=status.HTTP_200_OK,
-)
-async def get_barber_schedules(
-    barber_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-    ):
-    """
-    Get barber schedules for the current barber or admin.
-    """
-    check_barber_permission(current_user, barber_id)
+#     try:
 
-    barber_schedules = (await db.scalars(select(BarberSchedule).where(BarberSchedule.barber_id == barber_id))).all()
-    if  not barber_schedules or len(barber_schedules) <= 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No barber schedules found")
+#     if  not barber_schedules or len(barber_schedules) <= 0:
+#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No barber schedules found")
     
-    return barber_schedules
+#     return barber_schedules
 
 @router.post(
     "/{barber_id}/schedules",
@@ -47,30 +43,28 @@ async def create_barber_schedule(
     barber_id: int,
     body: BarberScheduleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
     """
     Create a new barber schedule for the current barber or admin.
     """
-    check_barber_permission(current_user, barber_id)
+    create_data = body.model_dump()
 
-    barber = await db.scalar(
-        select(User).where(
-            User.id == barber_id,
-            User.role == UserRole.barber
+    is_admin = current_user.is_admin()
+    is_assigned_barber = (
+            current_user.is_barber() and current_user.id == barber_id
         )
-    )
-    if not barber:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Barber not found")
+    if not (is_admin or is_assigned_barber):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allow to perform this action",
+        )
 
-    barber_schedule = BarberSchedule(
-        barber_id=barber_id,
-        **body.model_dump()
-    )
-    db.add(barber_schedule)
-    await db.commit()
-    await db.refresh(barber_schedule)
-
+    try:
+        barber_schedule = await barber_schedule_service.create_barber_schedule(barber_id, body=create_data, db=db)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
     return barber_schedule
 
 @router.patch(
@@ -84,27 +78,33 @@ async def update_barber_schedule(
     schedule_id: int,
     body: BarberScheduleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
     """
     Update an existing barber schedule for the current barber or admin.
     """
-    check_barber_permission(current_user, barber_id)
 
-    barber_schedule = await db.scalar(
-        select(BarberSchedule).where(
-            BarberSchedule.id == schedule_id,
-            BarberSchedule.barber_id == barber_id
-        )
+    new_data = body.model_dump(exclude_unset=True)
+    
+    is_admin = current_user.is_admin()
+    is_assigned_barber = (
+        current_user.is_barber() and current_user.id == barber_id
     )
-    if not barber_schedule:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Barber schedule not found")
+    if not (is_admin or is_assigned_barber):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allow to perform this action",
+        )
 
-    for key, value in body.model_dump(exclude_unset=True).items():
-        setattr(barber_schedule, key, value)
-
-    await db.commit()
-    await db.refresh(barber_schedule)
+    try:
+        barber_schedule = await barber_schedule_service.update_barber_schedule(
+            barber_schedule_id=schedule_id,
+            barber_id=barber_id,
+            body=new_data,
+            db=db
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
     return barber_schedule
 
@@ -117,23 +117,30 @@ async def delete_barber_schedule(
     barber_id: int,
     schedule_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
     """
     Delete an existing barber schedule for the current barber or admin.
     """
-    check_barber_permission(current_user, barber_id)
 
-    barber_schedule = await db.scalar(
-        select(BarberSchedule).where(
-            BarberSchedule.id == schedule_id,
-            BarberSchedule.barber_id == barber_id
-        )
+    is_admin = current_user.is_admin()
+    is_assigned_barber = (
+        current_user.is_barber() and current_user.id == barber_id
     )
-    if not barber_schedule:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Barber schedule not found")
+    if not (is_admin or is_assigned_barber):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allow to perform this action",
+        )
 
-    await db.delete(barber_schedule)
-    await db.commit()
+    try:
+        await barber_schedule_service.delete_barber_schedule(
+            barber_schedule_id=schedule_id,
+            barber_id=barber_id,
+            db=db
+        )
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-    return None

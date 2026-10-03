@@ -25,3 +25,9 @@ class BarberScheduleResponse(BarberScheduleBase):
     barber_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+class BarberScheduleFilter(BaseModel):
+    date_of_week: Optional[int] = Field(default=None, ge=0, le=6)
+    is_off: Optional[bool] = None
+    page: int = 1
+    limit: int = 10
