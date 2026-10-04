@@ -1,106 +1,109 @@
-from app.dependencies import get_current_active_user
-from app.core.database import get_db, Service, User
-from sqlalchemy import select
+from typing import Annotated
+from app.schemas.common import PageResponse
+from app.dependencies import require_roles
+from app.core.database import UserRole, get_db, User
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi import APIRouter, Depends, HTTPException, status
-from app.schemas.services import ServiceCreate, ServiceResponse, ServiceUpdate
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from app.schemas.services import ServiceCreateIn, ServiceFilterParamForPrivate, ServiceOutForPrivate, ServiceUpdateIn
+from app.services import services_service
+from app.core.exception import NotFoundException
 
 router = APIRouter(prefix="/admin/services", tags=["Services"])
 
 @router.get(
     "",
     description="Get all services for admin",
-    response_model=list[ServiceResponse],
+    response_model=PageResponse[ServiceOutForPrivate],
     status_code=status.HTTP_200_OK,
 )
 async def get_services(
+    filter: Annotated[ServiceFilterParamForPrivate, Query()],
     db: AsyncSession = Depends(get_db), 
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin))
     ):
     """
     Get all services for admin.
     """
-    if not current_user.is_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this resource")
-    
-    services = (await db.scalars(select(Service))).all()
-    if  not services or len(services) <= 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No services found")
-    
-    return services
+
+    try:
+        items, total, pages = await services_service.get_filtered_services_for_private(filter=filter, db=db)
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    validated_items = [
+        ServiceOutForPrivate.model_validate(service, from_attributes=True) for service in items
+    ]
+
+    return PageResponse[ServiceOutForPrivate](
+        items=validated_items,
+        total=total,
+        page=filter.page,
+        size=filter.limit,
+        pages=pages,
+    )
 
 @router.get(
-    "{service_id}",
+    "/{service_id}",
     description="Get a service by ID for admin",
-    response_model=ServiceResponse,
+    response_model=ServiceOutForPrivate,
     status_code=status.HTTP_200_OK,
 )
 async def get_service_by_id(
     service_id: int, 
     db: AsyncSession = Depends(get_db), 
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin))
     ):
     """
     Get a service by ID for admin.
     """
-    if not current_user.is_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this resource")
-    
-    service = await db.get(Service, service_id)
-    if not service:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
+    try:
+        service = await services_service.get_service_by_id(service_id, db=db)
+    except NotFoundException as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
     
     return service
 
 @router.post(
     "",
     description="Create a new service",
-    response_model=ServiceResponse,
+    response_model=ServiceOutForPrivate,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_service(
-    body: ServiceCreate,
+    body: ServiceCreateIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin))
 ):
     """
     Create a new service.
     """
-    if not current_user.is_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this resource")
-
-    service = Service(**body.model_dump())
-    db.add(service)
-    await db.commit()
-    await db.refresh(service)
+    new_data = body.model_dump()
+    service = await services_service.create_service(body=new_data, db=db)
+    
     return service
 
 @router.patch(
     "/{service_id}",
     description="Update a service",
-    response_model=ServiceResponse,
+    response_model=ServiceOutForPrivate,
     status_code=status.HTTP_200_OK,
 )
 async def update_service(
     service_id: int,
-    body: ServiceUpdate,
+    body: ServiceUpdateIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(require_roles(UserRole.admin))
 ):
     """
     Update a service.
     """
-    if not current_user.is_admin():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this resource")
+    new_data = body.model_dump(exclude_unset=True)
+    try:
+        service = await services_service.update_service(service_id, body=new_data, db=db)
+    except NotFoundException as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-    service = await db.get(Service, service_id)
-    if not service:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
-
-    for key, value in body.model_dump(exclude_unset=True).items():
-        setattr(service, key, value)
-
-    db.add(service)
-    await db.commit()
-    await db.refresh(service)
     return service

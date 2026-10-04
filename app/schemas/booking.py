@@ -5,15 +5,14 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.core.database import BookingStatus
+from app.schemas.common import FilterParamBase
 
 
-class BookingFilterParam(BaseModel):
+class BookingFilterParam(FilterParamBase):
     booking_date: Optional[date] = None
     status: Optional[BookingStatus] = None
     barber_id: Optional[int] = None
     customer_id: Optional[int] = None
-    page: int = 1
-    limit: int = 10
 
 
 class BookingStatusIn(BaseModel):
