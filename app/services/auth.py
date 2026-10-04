@@ -12,52 +12,41 @@ from app.core.config import config
 from app.core.database import SessionToken, User, get_db
 from app.core.security import hash_sha256
 
+class AuthException(Exception):
+    """Base class for authentication-related exceptions."""
+    pass
 
-class UserExistsException(Exception):
+class UserExistsException(AuthException):
     """Khi tạo user mới, nếu email hoặc phone đã tồn tại trong database thì raise exception này."""
 
     pass
 
 
-class TokenNotFoundException(Exception):
+
+class TokenNotFoundException(AuthException):
     """Khi xác nhận token, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
 
     pass
 
 
-class InvalidCredentialsException(Exception):
+class InvalidCredentialsException(AuthException):
     """Khi đăng nhập, nếu email hoặc password không đúng thì raise exception này."""
 
     pass
 
 
-class RefreshTokenNotFoundException(Exception):
+
+class RefreshTokenNotFoundException(AuthException):
     """Khi refresh token, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
 
     pass
 
 
-class UserNotFoundException(Exception):
+class UserNotFoundException(AuthException):
     """Khi tìm user theo email, nếu user không tồn tại thì raise exception này."""
 
     pass
 
-
-MAP_EXCEPTION_TO_HTTP_STATUS = {
-    UserExistsException: HTTPException(
-        status_code=400, detail="User with this email or phone already exists."
-    ),
-    TokenNotFoundException: HTTPException(
-        status_code=404, detail="Token not found or expired."
-    ),
-    InvalidCredentialsException: HTTPException(
-        status_code=401, detail="Invalid email or password."
-    ),
-    RefreshTokenNotFoundException: HTTPException(
-        status_code=404,
-        detail="Refresh token not found or expired. Please login again.",
-    ),
-}
 
 
 class AuthService:
@@ -249,7 +238,7 @@ class AuthService:
 
 
 def get_auth_service(
-    redis: CacheBackendDep = Depends(),
+    redis: CacheBackendDep,
     db: AsyncSession = Depends(get_db),
 ) -> AuthService:
     return AuthService(redis=redis, db=db)

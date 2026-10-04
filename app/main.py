@@ -66,6 +66,11 @@ app.include_router(services_internal.router)
 app.include_router(barber.router)
 app.include_router(barber_schedule.router)
 
+app.add_exception_handler(
+    auth.AuthException, 
+    auth.handle_domain_exception
+)
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}

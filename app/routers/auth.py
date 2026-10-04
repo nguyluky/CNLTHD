@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -14,6 +14,7 @@ from sqlalchemy.orm import joinedload
 
 from app.core.config import config
 from app.core.database import SessionToken, User, get_db
+from app.core.helper import camel_to_upper_snake_case
 from app.schemas.auth import (
     DevicesOut,
     LoginOut,
@@ -26,9 +27,10 @@ from app.schemas.auth import (
 from app.core.security import decode_token, hash_sha256
 from app.dependencies import DeviceInfoDep, EmailServiceDep, get_current_active_user
 from app.core.logger import logger
-from app.services.auth import AuthServiceDep
-
+from app.services.auth import *
+    
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
 
 
 @router.post(
@@ -309,3 +311,55 @@ async def reset_password(
     return {
         "message": "Password reset successful",
     }
+
+
+_MAP_EXCEPTION_TO_HTTP_STATUS = {
+    UserExistsException: lambda text: HTTPException(
+        status_code=400, detail=text or "User with this email or phone already exists."
+    ),
+    TokenNotFoundException: lambda text: HTTPException(
+        status_code=404, detail=text or "Token not found or expired."
+    ),
+    InvalidCredentialsException: lambda text: HTTPException(
+        status_code=401, detail=text or "Invalid email or password."
+    ),
+    RefreshTokenNotFoundException: lambda text: HTTPException(
+        status_code=404,
+        detail=text or "Refresh token not found or expired. Please login again.",
+    ),
+    UserNotFoundException: lambda text: HTTPException(
+        status_code=404, detail=text or "User not found."
+    ),
+}
+
+def handle_domain_exception(rep: Request, exception: Exception) -> JSONResponse:
+    """
+    Handle domain exceptions and map them to appropriate HTTP responses.
+    """
+
+    assert isinstance(exception, AuthException)
+    
+    exception_type = type(exception)
+    if exception_type in _MAP_EXCEPTION_TO_HTTP_STATUS:
+        http_exception = _MAP_EXCEPTION_TO_HTTP_STATUS[exception_type](str(exception))
+        error_code = camel_to_upper_snake_case(exception_type.__name__)
+        return JSONResponse(
+            status_code=http_exception.status_code,
+            content={
+                "error_code": error_code,
+                "message": http_exception.detail
+            },
+        )
+    else:
+        logger.error(
+            f"Unhandled AuthException on {rep.method} {rep.url}: {exception}",
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "A system error has occurred, please try again later.",
+            },
+        )
+    
