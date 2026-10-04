@@ -60,6 +60,8 @@ app.include_router(user.router)
 app.include_router(booking.router)
 # app.include_router(test.router)
 app.include_router(auth.router)
+app.include_router(services_router.router)
+app.include_router(services_internal.router)
 app.include_router(barber.router)
 
 @app.get("/health")
