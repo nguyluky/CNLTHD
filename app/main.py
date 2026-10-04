@@ -13,7 +13,7 @@ from app.core.logger import logger
 from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
-from app.internal import user, services as services_internal, booking
+from app.internal import user, services as services_internal, booking, barber_schedule
 from app.routers import test, auth, services as services_router
 
 
@@ -62,8 +62,8 @@ app.include_router(booking.router)
 app.include_router(auth.router)
 app.include_router(services_router.router)
 app.include_router(services_internal.router)
-app.include_router(barber_router.router)
-app.include_router(barber_schedule_internal.router)
+
+app.include_router(barber_schedule.router)
 
 @app.get("/health")
 async def health():

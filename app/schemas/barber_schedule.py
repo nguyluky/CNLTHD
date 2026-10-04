@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from datetime import time
 from typing import Optional
 
+from app.schemas.common import FilterParamBase
+
 class BarberScheduleBase(BaseModel):
     date_of_week: int = Field(..., ge=0, le=6)
     start_time: time
@@ -26,9 +28,6 @@ class BarberScheduleOut(BarberScheduleBase):
 
     model_config = ConfigDict(from_attributes=True)
 
-class BarberScheduleFilterParam(BaseModel):
+class BarberScheduleFilterParam(FilterParamBase):
     date_of_week: Optional[int] = Field(default=None, ge=0, le=6)
     is_off: Optional[bool] = None
-    
-    page: int = 1
-    limit: int = 10
