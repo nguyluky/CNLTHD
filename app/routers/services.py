@@ -45,7 +45,7 @@ async def get_services_public(
     response_model=ServiceOutForPublic,
     status_code=status.HTTP_200_OK,
 )
-async def get_service_by_id(
+async def get_service_by_id_public(
     service_id: int, 
     db: AsyncSession = Depends(get_db)
     ):

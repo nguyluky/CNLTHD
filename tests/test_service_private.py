@@ -9,38 +9,6 @@ from app.core.security import create_access_token
 
 pytestmark = pytest.mark.anyio
 
-@pytest.fixture
-async def sample_services(session_factory):
-    services = [
-        Service(
-            name="Cắt tóc nam",
-            description="Cắt tóc nam cơ bản",
-            price=Decimal("100000"),
-            duration_minutes=30,
-            is_active=True,
-        ),
-        Service(
-            name="Cắt tóc nữ",
-            description="Cắt tóc nữ cơ bản",
-            price=Decimal("120000"),
-            duration_minutes=45,
-            is_active=True,
-        ),
-        Service(
-            name="Cắt tóc trẻ em",
-            description=None,
-            price=Decimal("80000"),
-            duration_minutes=20,
-            is_active=False,
-        ),
-    ]
-    async with session_factory() as db:
-        db.add_all(services)
-        await db.commit()
-        for service in services:
-            await db.refresh(service)
-    return services
-
 async def test_get_service_by_id(
     client, create_auth_client_for_user, admin_user, sample_services
 ):

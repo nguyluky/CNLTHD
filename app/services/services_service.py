@@ -7,12 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exception import NotFoundException
 from app.schemas.services import ServiceFilterParamForPrivate, ServiceFilterParamForPublic, ServiceOutForPrivate, ServiceUpdateIn
 
-async def get_filtered_services_for_public(
-    filter: ServiceFilterParamForPublic,
+from sqlalchemy import Select, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+import math
+
+
+async def get_filtered_services(
+    query: Select,
+    filter,
     db: AsyncSession
 ):
-    query = select(Service).where(Service.is_active == True)
-
     if filter.name:
         query = query.where(Service.name.contains(filter.name))
 
@@ -23,51 +27,16 @@ async def get_filtered_services_for_public(
         query = query.where(Service.price <= filter.max_price)
 
     if filter.min_duration_minutes is not None:
-        query = query.where(Service.duration_minutes >= filter.min_duration_minutes)
+        query = query.where(
+            Service.duration_minutes >= filter.min_duration_minutes
+        )
 
     if filter.max_duration_minutes is not None:
-        query = query.where(Service.duration_minutes <= filter.max_duration_minutes)
+        query = query.where(
+            Service.duration_minutes <= filter.max_duration_minutes
+        )
 
-    count_query = select(func.count()).select_from(query.subquery())
-    total = await db.scalar(count_query) or 0
-
-    if total == 0:
-        raise NotFoundException("Service not found")
-
-    # pagination
-    offset = (filter.page - 1) * filter.limit
-    paginated_query = (
-        query.offset(offset).limit(filter.limit).order_by(Service.name.desc())
-    )
-
-    result = await db.scalars(paginated_query)
-    items = result.all()
-    pages = math.ceil(total / filter.limit)
-
-    return items, total, pages
-
-async def get_filtered_services_for_private(
-    filter: ServiceFilterParamForPrivate,
-    db: AsyncSession
-):
-    query = select(Service)
-
-    if filter.name:
-        query = query.where(Service.name.contains(filter.name))
-
-    if filter.min_price is not None:
-        query = query.where(Service.price >= filter.min_price)
-
-    if filter.max_price is not None:
-        query = query.where(Service.price <= filter.max_price)
-
-    if filter.min_duration_minutes is not None:
-        query = query.where(Service.duration_minutes >= filter.min_duration_minutes)
-
-    if filter.max_duration_minutes is not None:
-        query = query.where(Service.duration_minutes <= filter.max_duration_minutes)
-
-    if filter.is_active is not None:
+    if hasattr(filter, "is_active") and filter.is_active is not None:
         query = query.where(Service.is_active == filter.is_active)
 
     count_query = select(func.count()).select_from(query.subquery())
@@ -78,15 +47,48 @@ async def get_filtered_services_for_private(
 
     # pagination
     offset = (filter.page - 1) * filter.limit
+
     paginated_query = (
-        query.offset(offset).limit(filter.limit).order_by(Service.name.desc())
+        query
+        .order_by(Service.name.desc())
+        .offset(offset)
+        .limit(filter.limit)
     )
 
     result = await db.scalars(paginated_query)
+
     items = result.all()
     pages = math.ceil(total / filter.limit)
 
     return items, total, pages
+
+
+async def get_filtered_services_for_public(
+    filter: ServiceFilterParamForPublic,
+    db: AsyncSession
+):
+    query = select(Service).where(Service.is_active.is_(True))
+
+    return await get_filtered_services(
+        query=query,
+        filter=filter,
+        db=db
+    )
+
+async def get_filtered_services_for_private(
+    filter: ServiceFilterParamForPrivate,
+    db: AsyncSession
+):
+    query = select(Service)
+
+    if filter.is_active is not None:
+        query = query.where(Service.is_active == filter.is_active)
+
+    return await get_filtered_services(
+        query=query,
+        filter=filter,
+        db=db
+    )
 
 async def get_service_by_id(
     service_id: int,

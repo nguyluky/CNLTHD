@@ -8,38 +8,6 @@ from decimal import Decimal
 
 pytestmark = pytest.mark.anyio
 
-@pytest.fixture
-async def sample_services(session_factory):
-    services = [
-        Service(
-            name="Cắt tóc nam",
-            description="Cắt tóc nam cơ bản",
-            price=Decimal("100000"),
-            duration_minutes=30,
-            is_active=True,
-        ),
-        Service(
-            name="Cắt tóc nữ",
-            description="Cắt tóc nữ cơ bản",
-            price=Decimal("120000"),
-            duration_minutes=45,
-            is_active=True,
-        ),
-        Service(
-            name="Cắt tóc trẻ em",
-            description=None,
-            price=Decimal("80000"),
-            duration_minutes=20,
-            is_active=False,
-        ),
-    ]
-    async with session_factory() as db:
-        db.add_all(services)
-        await db.commit()
-        for service in services:
-            await db.refresh(service)
-    return services
-
 # get service by id success
 async def test_get_service_by_id(client, sample_services):
     service = sample_services[0]
@@ -89,3 +57,5 @@ async def test_get_services(client, sample_services):
         "price": "100000.00",
         "duration_minutes": sample_services[0].duration_minutes,
     }
+    assert "is_active" not in body["items"][0]
+
