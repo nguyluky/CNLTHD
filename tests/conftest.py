@@ -11,8 +11,9 @@ from httpx import ASGITransport, AsyncClient
 from redis_fastapi.cache_backend import CacheBackend
 from redis_fastapi.deps import get_cache_backend
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from decimal import Decimal
 
-from app.core.database import Base, User, UserRole, get_db
+from app.core.database import Base, User, UserRole, get_db, Service
 from app.core.email import EmailServiceInterface
 from app.core.security import create_access_token
 from app.dependencies import get_email_service
@@ -222,3 +223,35 @@ async def admin_user(session_factory, admin_data):
         await db.commit()
 
     return user
+
+@pytest.fixture
+async def sample_services(session_factory):
+    services = [
+        Service(
+            name="Cắt tóc nam",
+            description="Cắt tóc nam cơ bản",
+            price=Decimal("100000"),
+            duration_minutes=30,
+            is_active=True,
+        ),
+        Service(
+            name="Cắt tóc nữ",
+            description="Cắt tóc nữ cơ bản",
+            price=Decimal("120000"),
+            duration_minutes=45,
+            is_active=True,
+        ),
+        Service(
+            name="Cắt tóc trẻ em",
+            description=None,
+            price=Decimal("80000"),
+            duration_minutes=20,
+            is_active=False,
+        ),
+    ]
+    async with session_factory() as db:
+        db.add_all(services)
+        await db.commit()
+        for service in services:
+            await db.refresh(service)
+    return services
