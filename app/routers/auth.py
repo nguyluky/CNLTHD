@@ -26,6 +26,7 @@ from app.schemas.auth import (
 from app.core.security import decode_token, hash_sha256
 from app.dependencies import DeviceInfoDep, EmailServiceDep, get_current_active_user
 from app.core.logger import logger
+from app.services.auth import AuthServiceDep
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -37,12 +38,11 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     status_code=201,
     responses={409: {"description": "User already exists"}},
 )
-async def register(
+async def initialize_user_registration(
     body: RegisterIn,
-    redis: CacheBackendDep,
-    db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks,
     email_service: EmailServiceDep,
+    auth_service: AuthServiceDep,
 ):
     """
     Register a new user.
@@ -52,18 +52,12 @@ async def register(
     - **phone**: Phone number of the user unique
     """
 
-    # check if user already exists
-    existing_user = await db.scalar(
-        select(User).where(or_(User.email == body.email, User.phone == body.phone))
+    token = await auth_service.initialize_user_registration(
+        full_name=body.full_name,
+        email=body.email,
+        password=body.password,
+        phone=body.phone,
     )
-    if existing_user:
-        raise HTTPException(status_code=409, detail="User already exists")
-
-    token = str(uuid.uuid4())
-
-    redis_key = f"register:{token}"
-
-    await redis.set(redis_key, body.model_dump(), ttl=3600, eviction_group="register")
 
     confirmation_link = f"{config.BASE_URL}/auth/confirm/{token}"
     background_tasks.add_task(
@@ -84,28 +78,13 @@ async def register(
     status_code=200,
     responses={404: {"description": "Token not found"}},
 )
-async def confirm_registration(
-    token: str, redis: CacheBackendDep, db: AsyncSession = Depends(get_db)
-):
+async def confirm_registration(token: str, auth_service: AuthServiceDep):
     """
     Confirm user registration using the token sent to the user's email.
     - **token**: Token sent to the user's email
     """
 
-    redis_key = f"register:{token}"
-    data = await redis.get(redis_key, eviction_group="register")
-    await redis.delete(redis_key, eviction_group="register")
-    user_data = RegisterIn.model_validate(data) if data else None
-
-    if not user_data:
-        raise HTTPException(status_code=404, detail="Token not found or expired")
-
-    # remove password from user_data before creating user
-    user = User(**user_data.model_dump(exclude={"password"}))
-    user.hash_password(user_data.password)
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+    await auth_service.confirm_user_registration(token=token)
 
     return {"message": "User registered successfully"}
 
@@ -119,7 +98,7 @@ async def confirm_registration(
 async def login(
     data: Annotated[OAuth2Password, Depends()],
     device_info: DeviceInfoDep,
-    db: AsyncSession = Depends(get_db),
+    auth_service: AuthServiceDep,
 ):
     """
     Login with email and password.
@@ -128,43 +107,15 @@ async def login(
     - **password**: Password for the user account
     """
 
-    user = await db.scalar(select(User).where(User.email == data.username))
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    user = await auth_service.login(email=data.username, password=data.password)
 
-    # verify password
-    if not user.verify_password(data.password):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-
-
-    refresh_token_expires_delta = timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
-
-    refresh_token = str(uuid.uuid4())
-
-    # hash SHA256
-    refresh_token_hash = hash_sha256(refresh_token)
-
-    session_token = SessionToken(
-        user_id=user.id,
-        refresh_token_hash=refresh_token_hash,
-        device_id=device_info.device_id,
-        device_name=device_info.device_name,
-        device_type=device_info.device_type,
-        os=device_info.os,
-        browser=device_info.browser,
-        ip_address=device_info.ip_address,
-        user_agent=device_info.user_agent,
-        expired_at=datetime.now(timezone.utc) + refresh_token_expires_delta,
+    refresh_token, session_token = await auth_service.generate_new_refresh_token(
+        user=user, device_info=device_info.model_dump()
     )
 
-    db.add(session_token)
-    await db.commit()
-    await db.refresh(session_token)
-
-    access_token = user.create_access_token(
-        timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES),
-        sid=f"session_{session_token.id}"
-    ) 
+    access_token = auth_service.generate_access_token_from_session(
+        user=user, session_token=session_token
+    )
 
     return {
         "message": "Login successful",
@@ -181,7 +132,7 @@ async def login(
     status_code=200,
 )
 async def refresh_token(
-    data: Annotated[OAuth2Refresh, Depends()], db: AsyncSession = Depends(get_db)
+    data: Annotated[OAuth2Refresh, Depends()], auth_service: AuthServiceDep
 ):
     """
     Refresh access token using refresh token.
@@ -191,37 +142,16 @@ async def refresh_token(
     - **client_secret**: The client secret
     """
 
-    hash_refresh_token = hash_sha256(data.refresh_token)
-
-    session_token = await db.scalar(
-        select(SessionToken)
-        .where(SessionToken.refresh_token_hash == hash_refresh_token)
-        .options(joinedload(SessionToken.user))
+    session_token = await auth_service.get_session_token_by_refresh_token(
+        refresh_token=data.refresh_token
     )
 
-    if not session_token:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-    
-    if session_token.revoked_at is not None:
-        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
+    new_refresh_token, session_token = await auth_service.regenerate_refresh_token(
+        session_token=session_token
+    )
 
-    refresh_token_expires_delta = timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
-
-    new_refresh_token = str(uuid.uuid4())
-
-    new_refresh_token_hash = hash_sha256(new_refresh_token)
-
-    session_token.refresh_token_hash = new_refresh_token_hash
-    session_token.expired_at = datetime.now(timezone.utc) + refresh_token_expires_delta
-    session_token.last_activity_at = datetime.now(timezone.utc)
-
-    db.add(session_token)
-    await db.commit()
-    await db.refresh(session_token)
-    
-    new_access_token = session_token.user.create_access_token(
-        timedelta(minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES),
-        sid=f"session_{session_token.id}"
+    new_access_token = auth_service.generate_access_token_from_session(
+        user=session_token.user, session_token=session_token
     )
 
     return {
@@ -231,13 +161,15 @@ async def refresh_token(
         "refresh_token": new_refresh_token,
     }
 
+
 @router.post(
     "/logout",
     description="Logout and revoke refresh token",
     status_code=200,
 )
 async def logout(
-    data: Annotated[OAuth2Logout, Depends()], db: AsyncSession = Depends(get_db)
+    data: Annotated[OAuth2Logout, Depends()],
+    auth_service: AuthServiceDep,
 ):
     """
     Logout and revoke refresh token.
@@ -246,27 +178,16 @@ async def logout(
     - **client_secret**: The client secret
     """
 
-    hash_refresh_token = hash_sha256(data.refresh_token)
-
-    session_token = await db.scalar(
-        select(SessionToken)
-        .where(SessionToken.refresh_token_hash == hash_refresh_token)
+    session_token = await auth_service.get_session_token_by_refresh_token(
+        refresh_token=data.refresh_token
     )
 
-    if not session_token:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-    
-    if session_token.revoked_at is not None:
-        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
-
-    session_token.revoked_at = datetime.now(timezone.utc)
-
-    db.add(session_token)
-    await db.commit()
+    await auth_service.revoke_session_token(session_token=session_token)
 
     return {
         "message": "Logout successful",
     }
+
 
 @router.post(
     "/logout_all",
@@ -274,7 +195,8 @@ async def logout(
     status_code=200,
 )
 async def logout_all(
-    data: Annotated[OAuth2Logout, Depends()], db: AsyncSession = Depends(get_db)
+    data: Annotated[OAuth2Logout, Depends()],
+    auth_service: AuthServiceDep,
 ):
     """
     Logout from all devices and revoke all refresh tokens.
@@ -283,31 +205,16 @@ async def logout_all(
     - **client_secret**: The client secret
     """
 
-    hash_refresh_token = hash_sha256(data.refresh_token)
-
-    session_token = await db.scalar(
-        select(SessionToken)
-        .where(SessionToken.refresh_token_hash == hash_refresh_token)
-        .options(joinedload(SessionToken.user))
+    session_token = await auth_service.get_session_token_by_refresh_token(
+        refresh_token=data.refresh_token
     )
 
-    if not session_token:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-    
-    if session_token.revoked_at is not None:
-        raise HTTPException(status_code=401, detail="Refresh token has been revoked")
-
-    user_id = session_token.user_id
-
-    query = update(SessionToken).where(SessionToken.user_id == user_id).values(revoked_at=datetime.now(timezone.utc))
-
-    # Revoke all refresh tokens for the user
-    await db.execute( query)
-    await db.commit()
+    await auth_service.revoke_all_session_tokens_for_user(user=session_token.user)
 
     return {
         "message": "Logout from all devices successful",
     }
+
 
 @router.get(
     "/devices",
@@ -317,22 +224,21 @@ async def logout_all(
 )
 async def get_active_devices(
     current_user: Annotated[User, Depends(get_current_active_user)],
-    db: AsyncSession = Depends(get_db),
+    auth_service: AuthServiceDep,
 ):
     """
     Get all active devices for the current user.
     """
 
-    active_devices = await db.scalars(
-        select(SessionToken)
-        .where(SessionToken.user_id == current_user.id)
-        .where(SessionToken.revoked_at.is_(None))
+    active_devices = await auth_service.get_active_session_tokens_for_user(
+        user=current_user
     )
 
     return {
         "message": "Active devices retrieved successfully",
-        "active_devices": active_devices.all(),
+        "active_devices": active_devices,
     }
+
 
 @router.post(
     "/forgot_password",
@@ -341,8 +247,8 @@ async def get_active_devices(
 )
 async def forgot_password(
     email: str,
+    auth_service: AuthServiceDep,
     redis: CacheBackendDep,
-    db: Annotated[AsyncSession, Depends(get_db)],
     background_tasks: BackgroundTasks,
     email_service: EmailServiceDep,
 ):
@@ -351,14 +257,13 @@ async def forgot_password(
     - **email**: Email address of the user
     """
 
-    user = await db.scalar(select(User).where(User.email == email))
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
+    user = await auth_service.get_user_by_email(email=email)
     token = str(uuid.uuid4())
     redis_key = f"forgot_password:{token}"
 
-    await redis.set(redis_key, {"user_id": user.id}, ttl=3600, eviction_group="forgot_password")
+    await redis.set(
+        redis_key, {"user_id": user.id}, ttl=3600, eviction_group="forgot_password"
+    )
 
     reset_link = f"{config.BASE_URL}/auth/reset_password/{token}"
     background_tasks.add_task(
@@ -371,6 +276,7 @@ async def forgot_password(
         "message": "Password reset link sent. Please check your email.",
     }
 
+
 @router.post(
     "/reset_password/{token}",
     description="Reset password using token",
@@ -380,7 +286,7 @@ async def reset_password(
     token: str,
     new_password: str,
     redis: CacheBackendDep,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    auth_service: AuthServiceDep,
 ):
     """
     Reset password using token.
@@ -396,14 +302,9 @@ async def reset_password(
         raise HTTPException(status_code=404, detail="Token not found or expired")
 
     user_id = data.get("user_id")
-    user = await db.scalar(select(User).where(User.id == user_id))
+    user = await auth_service.get_user_by_id(user_id=user_id)
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    user.hash_password(new_password)
-    await db.commit()
-    await db.refresh(user)
+    await auth_service.update_user_password(user=user, new_password=new_password)
 
     return {
         "message": "Password reset successful",
