@@ -14,7 +14,7 @@ from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
 from app.internal import user, services as services_internal, booking
-from app.routers import test, auth, services as services_router
+from app.routers import test, auth, services as services_router, barber
 
 
 @asynccontextmanager

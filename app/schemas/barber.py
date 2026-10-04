@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator
+from app.schemas.common import FilterParamBase
 
 
 class BarberOut(BaseModel):
@@ -12,14 +13,12 @@ class BarberOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-class BarberFilterParam(BaseModel):
+class BarberFilterParam(FilterParamBase):
     full_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     is_active: Optional[bool] = None
 
-    page: int = 1
-    limit: int = 10
     
         
 
