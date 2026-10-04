@@ -27,12 +27,18 @@ router = APIRouter(
 
 
 @router.get("/users", description="Get all users", response_model=PageResponse[UserOut])
-async def get_all_users(filter: Annotated[GetAllUsersFilterIn, Query()], admin_service: AdminServiceDep):
+async def get_all_users(
+    filter: Annotated[GetAllUsersFilterIn, Query()], admin_service: AdminServiceDep
+):
     users, total = await admin_service.get_all_users(
         full_name=filter.full_name,
         email=filter.email,
         phone=filter.phone,
         role=filter.role,
+        limit=filter.limit,
+        offset=filter.page * filter.limit
+        if filter.page is not None and filter.limit is not None
+        else None,
     )
 
     return create_page_response(
@@ -41,6 +47,7 @@ async def get_all_users(filter: Annotated[GetAllUsersFilterIn, Query()], admin_s
         page=filter.page,
         size=filter.limit,
     )
+
 
 @router.post(
     "/users", description="Create a new user", status_code=201, response_model=UserOut
@@ -74,8 +81,11 @@ async def update_user(
 
 
 _MAP_EXCEPTION_TO_HTTP_STATUS = {
-    UserAlreadyExistsException: lambda e: HTTPException(status_code=400, detail=e or "User with this email or phone already exists"),
+    UserAlreadyExistsException: lambda e: HTTPException(
+        status_code=400, detail=e or "User with this email or phone already exists"
+    ),
 }
+
 
 def handle_domain_exception(req: Request, exc: Exception) -> JSONResponse:
     exception_type = type(exc)
@@ -85,8 +95,7 @@ def handle_domain_exception(req: Request, exc: Exception) -> JSONResponse:
         return create_error_response(
             status_code=http_exception.status_code,
             error_code=status_code,
-            message=http_exception.detail
+            message=http_exception.detail,
         )
 
     raise exc  # Re-raise the exception if it's not handled
-    

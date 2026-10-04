@@ -26,6 +26,8 @@ class AdminService:
         email: str | None = None,
         phone: str | None = None,
         role: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None
     ) :
         query = select(User)
 
@@ -37,6 +39,10 @@ class AdminService:
             query = query.where(User.phone.ilike(f"%{phone}%"))
         if role:
             query = query.where(User.role == role)
+        if limit is not None:
+            query = query.limit(limit)
+        if offset is not None:
+            query = query.offset(offset)
         query = query.order_by(User.created_at.desc())
 
         total_users = await self.db.scalar(select(func.count()).select_from(query.subquery()))
