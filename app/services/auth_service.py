@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import Depends, HTTPException
 from redis_fastapi import CacheBackendDep
+from sqlalchemy.orm import selectinload
 
 from app.core.config import config
 from app.core.database import SessionToken, User, get_db
@@ -20,8 +21,6 @@ class UserExistsException(AuthException):
     """Khi tạo user mới, nếu email hoặc phone đã tồn tại trong database thì raise exception này."""
 
     pass
-
-
 
 class TokenNotFoundException(AuthException):
     """Khi xác nhận token, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
@@ -48,6 +47,10 @@ class UserNotFoundException(AuthException):
     pass
 
 
+class TokenExpiredException(AuthException):
+    """Khi xác nhận token, nếu token đã hết hạn thì raise exception này."""
+
+    pass
 
 class AuthService:
     def __init__(self, redis: CacheBackendDep, db: AsyncSession):
@@ -157,6 +160,9 @@ class AuthService:
         session_token = await self.db.execute(
             select(SessionToken).where(
                 SessionToken.refresh_token_hash == refresh_token_hash
+            ).options(
+                # eager load the user relationship
+                selectinload(SessionToken.user)
             )
         )
         session_token = session_token.scalar_one_or_none()
@@ -169,6 +175,11 @@ class AuthService:
         if session_token.revoked_at is not None:
             raise RefreshTokenNotFoundException(
                 "Refresh token has been revoked. Please login again."
+            )
+        
+        if session_token.expired_at < datetime.now():
+            raise TokenExpiredException(
+                "Refresh token has expired. Please login again."
             )
 
         return session_token

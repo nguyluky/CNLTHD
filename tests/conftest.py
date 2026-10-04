@@ -134,44 +134,12 @@ async def registered_user(register_user, customer_data):
     return await register_user(customer_data)
 
 
-# @pytest.fixture
-# async def auth_client(client, session_factory, user_data):
-
-#     async with session_factory() as db:
-#         user = User(
-#             full_name = user_data["full_name"],
-#             email = user_data["email"],
-#             phone = user_data["phone"],
-#             role=UserRole.customer
-#         )
-#         user.hash_password(user_data["password"])
-#         db.add(user)
-#         await db.commit()
-
-#     #login to get the token
-#     login_response = await client.post("/auth/login", data={
-#         "username": user_data["email"],
-#         "password": user_data["password"]
-#     })
-
-#     token = login_response.json()["access_token"]
-
-#     client.headers = {"Authorization": f"Bearer {token}"}
-
-#     yield client
-
-#     client.headers.pop("Authorization", None)
-
 @pytest.fixture
 async def create_auth_client_for_user(client, session_factory):
     async def create_client(
         user: User,
     ):
-        token = create_access_token(
-            data={"sub": user.email, "role": user.role.name},
-            expires_delta=timedelta(minutes=300),
-        )
-
+        token = user.create_access_token(expires_delta=timedelta(hours=1), sid=None)
         client.headers.update({"Authorization": f"Bearer {token}"})
         return client
 

@@ -102,7 +102,7 @@ class OAuth2Logout(OAuth2Refresh):
     """Modified from fastapi.security.OAuth2PasswordRequestForm"""
 
 
-class DevicesOut(BaseModel):
+class Device(BaseModel):
     device_id: str
     device_name: str | None
     device_type: str | None
@@ -114,3 +114,7 @@ class DevicesOut(BaseModel):
     last_activity_at: datetime
     expired_at: datetime
     revoked_at: datetime | None
+
+class DevicesOut(BaseModel):
+    message: str
+    active_devices: list[Device]

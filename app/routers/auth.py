@@ -27,7 +27,8 @@ from app.schemas.auth import (
 from app.core.security import decode_token, hash_sha256
 from app.dependencies import DeviceInfoDep, EmailServiceDep, get_current_active_user
 from app.core.logger import logger
-from app.services.auth import *
+from app.schemas.common import create_error_response
+from app.services.auth_service import *
     
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -52,6 +53,7 @@ async def initialize_user_registration(
     - **email**: Email address of the user unique
     - **password**: Password for the user account
     - **phone**: Phone number of the user unique
+
     """
 
     token = await auth_service.initialize_user_registration(
@@ -221,7 +223,7 @@ async def logout_all(
 @router.get(
     "/devices",
     description="Get all active devices for the current user",
-    response_model=list[DevicesOut],
+    response_model=DevicesOut,
     status_code=200,
 )
 async def get_active_devices(
@@ -330,6 +332,9 @@ _MAP_EXCEPTION_TO_HTTP_STATUS = {
     UserNotFoundException: lambda text: HTTPException(
         status_code=404, detail=text or "User not found."
     ),
+    TokenExpiredException: lambda text: HTTPException(
+        status_code=401, detail=text or "Token has expired. Please login again."
+    ),
 }
 
 def handle_domain_exception(rep: Request, exception: Exception) -> JSONResponse:
@@ -343,23 +348,19 @@ def handle_domain_exception(rep: Request, exception: Exception) -> JSONResponse:
     if exception_type in _MAP_EXCEPTION_TO_HTTP_STATUS:
         http_exception = _MAP_EXCEPTION_TO_HTTP_STATUS[exception_type](str(exception))
         error_code = camel_to_upper_snake_case(exception_type.__name__)
-        return JSONResponse(
+        return create_error_response(
             status_code=http_exception.status_code,
-            content={
-                "error_code": error_code,
-                "message": http_exception.detail
-            },
+            error_code=error_code,
+            message=http_exception.detail,
         )
     else:
         logger.error(
             f"Unhandled AuthException on {rep.method} {rep.url}: {exception}",
             exc_info=True,
         )
-        return JSONResponse(
+        return create_error_response(
             status_code=500,
-            content={
-                "error_code": "INTERNAL_SERVER_ERROR",
-                "message": "A system error has occurred, please try again later.",
-            },
+            error_code="INTERNAL_SERVER_ERROR",
+            message="A system error has occurred, please try again later.",
         )
     

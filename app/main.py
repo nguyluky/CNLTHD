@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from redis_fastapi import FastAPIRedis
 
-from app.core.exception import ErrorModel, ValidationErrorModel
+from app.schemas.common import create_error_response, ErrorModel, ValidationErrorModel, create_validation_error_response
 from app.core.logger import logger
 from app.core.config import config
 from app.core.database import Base
@@ -82,25 +82,19 @@ async def global_exception_handler(request: Request, exception: Exception):
         f"Unhandled Exception on {request.method} {request.url}: {exception}",
         exc_info=True,
     )
-    return JSONResponse(
+    return create_error_response(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={
-            "error_code": "INTERNAL_SERVER_ERROR",
-            "message": "A system error has occured, please try again later.",
-        },
-    )
-
+        error_code="INTERNAL_SERVER_ERROR",
+        message="A system error has occurred, please try again later.",
+    )   
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exception: HTTPException):
-    return JSONResponse(
+    return create_error_response(
         status_code=exception.status_code,
-        content={
-            "error_code": http.HTTPStatus(exception.status_code).name,
-            "message": exception.detail,
-        },
+        error_code=http.HTTPStatus(exception.status_code).name,
+        message=exception.detail,
     )
-
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc: RequestValidationError):
@@ -119,11 +113,10 @@ async def validation_exception_handler(request, exc: RequestValidationError):
 
         sanitized_errors.append(error_copy)
 
-    return JSONResponse(
+
+    return create_validation_error_response(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "error_code": "VALIDATION_ERROR",
-            "message": message,
-            "details": sanitized_errors,
-        },
+        error_code="VALIDATION_ERROR",
+        message=message,
+        details=sanitized_errors,
     )
