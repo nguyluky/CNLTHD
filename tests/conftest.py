@@ -1,5 +1,7 @@
 """Shared fixtures; each test receives fresh database, Redis, and email state."""
 
+from datetime import timedelta
+from typing import Optional
 from unittest.mock import AsyncMock
 from urllib.parse import urlparse
 
@@ -9,9 +11,11 @@ from httpx import ASGITransport, AsyncClient
 from redis_fastapi.cache_backend import CacheBackend
 from redis_fastapi.deps import get_cache_backend
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from decimal import Decimal
 
-from app.core.database import Base, User, UserRole, get_db
+from app.core.database import Base, User, UserRole, get_db, Service
 from app.core.email import EmailServiceInterface
+from app.core.security import create_access_token
 from app.dependencies import get_email_service
 from app.main import app
 
@@ -70,13 +74,40 @@ async def client(session_factory, cache, email_service):
         app.dependency_overrides.update(previous_overrides)
 
 
+# @pytest.fixture
+# def user_data():
+#     return {
+#         "full_name": "Test User",
+#         "email": "test@example.com",
+#         "password": "testpassword",
+#         "phone": "0901234567",
+#     }
+
 @pytest.fixture
-def user_data():
+def customer_data():
     return {
-        "full_name": "Test User",
-        "email": "test@example.com",
-        "password": "testpassword",
-        "phone": "0901234567",
+        "full_name": "Test customer",
+        "email": "customer@example.com",
+        "password": "customerpassword",
+        "phone": "0901234678",
+    }
+
+@pytest.fixture
+def barber_data():
+    return {
+        "full_name": "Test barber",
+        "email": "barber@example.com",
+        "password": "barberpassword",
+        "phone": "0901234789",
+    }
+
+@pytest.fixture
+def admin_data():
+    return {
+        "full_name": "Test admin",
+        "email": "admin@example.com",
+        "password": "adminpassword",
+        "phone": "0901234890",
     }
 
 
@@ -99,33 +130,128 @@ async def register_user(client, email_service):
 
 
 @pytest.fixture
-async def registered_user(register_user, user_data):
-    return await register_user(user_data)
+async def registered_user(register_user, customer_data):
+    return await register_user(customer_data)
+
+
+# @pytest.fixture
+# async def auth_client(client, session_factory, user_data):
+
+#     async with session_factory() as db:
+#         user = User(
+#             full_name = user_data["full_name"],
+#             email = user_data["email"],
+#             phone = user_data["phone"],
+#             role=UserRole.customer
+#         )
+#         user.hash_password(user_data["password"])
+#         db.add(user)
+#         await db.commit()
+
+#     #login to get the token
+#     login_response = await client.post("/auth/login", data={
+#         "username": user_data["email"],
+#         "password": user_data["password"]
+#     })
+
+#     token = login_response.json()["access_token"]
+
+#     client.headers = {"Authorization": f"Bearer {token}"}
+
+#     yield client
+
+#     client.headers.pop("Authorization", None)
+
+@pytest.fixture
+async def create_auth_client_for_user(client, session_factory):
+    async def create_client(
+        user: User,
+    ):
+        token = create_access_token(
+            data={"sub": user.email, "role": user.role.name},
+            expires_delta=timedelta(minutes=300),
+        )
+
+        client.headers.update({"Authorization": f"Bearer {token}"})
+        return client
+
+    return create_client
+
 
 
 @pytest.fixture
-async def auth_client(client, session_factory, user_data):
+async def customer_user(session_factory, customer_data):
     async with session_factory() as db:
         user = User(
-            full_name=user_data["full_name"],
-            email=user_data["email"],
-            phone=user_data["phone"],
-            role=UserRole.customer,
+            full_name = customer_data["full_name"],
+            email = customer_data["email"],
+            phone = customer_data["phone"],
+            role=UserRole.customer
         )
-        user.hash_password(user_data["password"])
+        user.hash_password(customer_data["password"])
         db.add(user)
         await db.commit()
 
-    # login to get the token
-    login_response = await client.post(
-        "/auth/login",
-        data={"username": user_data["email"], "password": user_data["password"]},
-    )
+    return user
 
-    token = login_response.json()["access_token"]
+@pytest.fixture
+async def barber_user(session_factory, barber_data):
+    async with session_factory() as db:
+        user = User(
+            full_name = barber_data["full_name"],
+            email = barber_data["email"],
+            phone = barber_data["phone"],
+            role=UserRole.barber
+        )
+        user.hash_password(barber_data["password"])
+        db.add(user)
+        await db.commit()
 
-    client.headers = {"Authorization": f"Bearer {token}"}
+    return user
 
-    yield client
+@pytest.fixture
+async def admin_user(session_factory, admin_data):
+    async with session_factory() as db:
+        user = User(
+            full_name = admin_data["full_name"],
+            email = admin_data["email"],
+            phone = admin_data["phone"],
+            role=UserRole.admin
+        )
+        user.hash_password(admin_data["password"])
+        db.add(user)
+        await db.commit()
 
-    client.headers.pop("Authorization", None)
+    return user
+
+@pytest.fixture
+async def sample_services(session_factory):
+    services = [
+        Service(
+            name="Cắt tóc nam",
+            description="Cắt tóc nam cơ bản",
+            price=Decimal("100000"),
+            duration_minutes=30,
+            is_active=True,
+        ),
+        Service(
+            name="Cắt tóc nữ",
+            description="Cắt tóc nữ cơ bản",
+            price=Decimal("120000"),
+            duration_minutes=45,
+            is_active=True,
+        ),
+        Service(
+            name="Cắt tóc trẻ em",
+            description=None,
+            price=Decimal("80000"),
+            duration_minutes=20,
+            is_active=False,
+        ),
+    ]
+    async with session_factory() as db:
+        db.add_all(services)
+        await db.commit()
+        for service in services:
+            await db.refresh(service)
+    return services

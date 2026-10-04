@@ -1,6 +1,8 @@
 from typing import Annotated, Any, Dict, Optional, Tuple
 from pydantic import BaseModel, Field
 import pydantic
+from typing import Annotated, Generic, TypeVar
+from pydantic import BaseModel, Field
 from app.core.constants import EMAIL_REGEX, PHONE_REGEX
 from pydantic._internal._model_construction import ModelMetaclass
 
@@ -41,3 +43,30 @@ class AllOptionalMeta(ModelMetaclass):
         namespaces["__annotations__"] = annotations
 
         return super().__new__(self, name, bases, namespaces, **kwargs)
+# Reusable generic PageResponse 
+T=TypeVar("T")
+
+class PageResponse(BaseModel, Generic[T]):
+    items: list[T] = Field(..., description="List of items on the current page")
+    total: int = Field(..., ge=0, description="Total amount of items")
+    page: int = Field(..., ge=1, description="Current page")
+    size: int = Field(..., ge=1, description="Amount of items on the current page")
+    pages: int = Field(..., ge=0, description="Total amount of pages")
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "items": [],
+                    "total": 42,
+                    "page": 1,
+                    "size": 10,
+                    "pages": 5
+                }
+            ]
+        }
+    }
+
+class FilterParamBase(BaseModel):
+    page: int = Field(1, ge=1, description="Page number")
+    limit: int = Field(10, ge=1, le=100, description="Number of items per page")
