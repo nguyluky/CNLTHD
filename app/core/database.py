@@ -95,13 +95,6 @@ class User(Base):
             expires_delta=expires_delta,
         )
 
-    # def update_info(self, full_name, phone, email) -> bool:
-    #     if full_name:
-    #         self.full_name = full_name
-    #     if self.phone:
-    #         self.phone = self.phone
-    #     if email:
-    #         self.email = email
 
     def is_admin(self) -> bool:
         return self.role == UserRole.admin
