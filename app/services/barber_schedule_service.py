@@ -24,9 +24,6 @@ async def get_filtered_barber_schedules(
     count_query = select(func.count()).select_from(query.subquery())
     total = await db.scalar(count_query) or 0
 
-    count_query = select(func.count()).select_from(query.subquery())
-    total = await db.scalar(count_query) or 0
-
     if total == 0:
         raise NotFoundException("Barber Schedule Not Found")
 

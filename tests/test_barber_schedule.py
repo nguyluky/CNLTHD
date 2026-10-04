@@ -47,7 +47,7 @@ async def create_schedule(
 
 
 async def test_get_barber_schedules_applies_filters(
-    client, create_auth_client_for_user, barber_user, session_factory
+    create_auth_client_for_user, barber_user, session_factory
 ):
     matching = await create_schedule(
         session_factory, barber_user.id, date_of_week=2, is_off=True
@@ -69,7 +69,7 @@ async def test_get_barber_schedules_applies_filters(
 
 
 async def test_get_barber_schedules_forbidden_for_another_barber(
-    client, create_auth_client_for_user, barber_user, admin_user
+    create_auth_client_for_user, barber_user, admin_user
 ):
     barber_client = await create_auth_client_for_user(barber_user)
 
@@ -81,7 +81,7 @@ async def test_get_barber_schedules_forbidden_for_another_barber(
 
 
 async def test_get_barber_schedules_not_found_when_empty(
-    client, create_auth_client_for_user, barber_user
+    create_auth_client_for_user, barber_user
 ):
     barber_client = await create_auth_client_for_user(barber_user)
 
@@ -94,7 +94,7 @@ async def test_get_barber_schedules_not_found_when_empty(
 
 
 async def test_create_barber_schedule(
-    client, create_auth_client_for_user, barber_user, session_factory
+    create_auth_client_for_user, barber_user, session_factory
 ):
     barber_client = await create_auth_client_for_user(barber_user)
     payload = schedule_payload(date_of_week=3)
@@ -119,22 +119,33 @@ async def test_create_barber_schedule(
 
 
 async def test_admin_can_create_schedule_for_barber(
-    client, create_auth_client_for_user, admin_user, barber_user
+    create_auth_client_for_user, admin_user, barber_user, session_factory
 ):
     admin_client = await create_auth_client_for_user(admin_user)
+    payload = schedule_payload(date_of_week=5)
 
     response = await admin_client.post(
         f"/barber_schedules/{barber_user.id}/schedules",
-        json=schedule_payload(date_of_week=5),
+        json=payload,
     )
 
     assert response.status_code == 201
-    assert response.json()["barber_id"] == barber_user.id
-    assert response.json()["date_of_week"] == 5
+    body = response.json()
+    assert body == {
+        "id": body["id"],
+        "barber_id": barber_user.id,
+        **payload,
+    }
+    async with session_factory() as db:
+        saved = await db.scalar(
+            select(BarberSchedule).where(BarberSchedule.id == body["id"])
+        )
+        assert saved is not None
+        assert saved.date_of_week == payload["date_of_week"]
 
 
 async def test_customer_cannot_create_barber_schedule(
-    client, create_auth_client_for_user, customer_user, barber_user
+    create_auth_client_for_user, customer_user, barber_user
 ):
     customer_client = await create_auth_client_for_user(customer_user)
 
@@ -147,7 +158,7 @@ async def test_customer_cannot_create_barber_schedule(
 
 
 async def test_create_barber_schedule_rejects_invalid_day(
-    client, create_auth_client_for_user, barber_user
+    create_auth_client_for_user, barber_user
 ):
     barber_client = await create_auth_client_for_user(barber_user)
 
@@ -161,7 +172,7 @@ async def test_create_barber_schedule_rejects_invalid_day(
 
 
 async def test_update_barber_schedule(
-    client, create_auth_client_for_user, barber_user, session_factory
+    create_auth_client_for_user, barber_user, session_factory
 ):
     schedule = await create_schedule(
         session_factory, barber_user.id, date_of_week=1, is_off=True
@@ -180,10 +191,17 @@ async def test_update_barber_schedule(
     assert body["start_time"] == "10:00:00"
     assert body["end_time"] == "17:00:00"
     assert body["is_off"] is True
+    async with session_factory() as db:
+        saved = await db.scalar(
+            select(BarberSchedule).where(BarberSchedule.id == body["id"])
+        )
+        assert saved is not None
+        assert saved.date_of_week == body["date_of_week"]
+        assert saved.start_time.strftime("%H:%M:%S") == "10:00:00"
 
 
 async def test_update_barber_schedule_not_found(
-    client, create_auth_client_for_user, barber_user
+    create_auth_client_for_user, barber_user
 ):
     barber_client = await create_auth_client_for_user(barber_user)
 
@@ -197,7 +215,7 @@ async def test_update_barber_schedule_not_found(
 
 
 async def test_delete_barber_schedule(
-    client, create_auth_client_for_user, barber_user, session_factory
+    create_auth_client_for_user, barber_user, session_factory
 ):
     schedule = await create_schedule(session_factory, barber_user.id)
     barber_client = await create_auth_client_for_user(barber_user)
@@ -214,7 +232,7 @@ async def test_delete_barber_schedule(
 
 
 async def test_delete_barber_schedule_not_found(
-    client, create_auth_client_for_user, barber_user
+    create_auth_client_for_user, barber_user
 ):
     barber_client = await create_auth_client_for_user(barber_user)
 

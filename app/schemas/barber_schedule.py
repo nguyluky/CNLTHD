@@ -16,7 +16,7 @@ class BarberScheduleCreateIn(BarberScheduleBase):
 
 
 class BarberScheduleUpdateIn(BaseModel):
-    date_of_week: int | None = Field(default=None, ge=0, le=6)
+    date_of_week: Optional[int] | None = Field(default=None, ge=0, le=6)
     start_time: Optional[time] = None
     end_time: Optional[time] = None
     is_off: Optional[bool] = None

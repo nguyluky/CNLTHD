@@ -92,7 +92,8 @@ async def create_barber_schedule(
 
 @router.patch(
     "/{barber_id}/schedules/{schedule_id}",
-    description="Update an existing barber schedule for the current barber or admin",
+    description=" Admins have the authority to edit barbers' schedules." \
+    "Barbers can edit their own schedules.",
     response_model=BarberScheduleOut,
     status_code=status.HTTP_200_OK,
 )
@@ -104,7 +105,8 @@ async def update_barber_schedule(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
     """
-    Update an existing barber schedule for the current barber or admin.
+    Admins have the authority to edit barbers' schedules.
+    Barbers can edit their own schedules.
     """
 
     new_data = body.model_dump(exclude_unset=True)
@@ -133,7 +135,8 @@ async def update_barber_schedule(
 
 @router.delete(
     "/{barber_id}/schedules/{schedule_id}",
-    description="Delete an existing barber schedule for the current barber or admin",
+    description="Administrators have the authority to delete barbers' work schedules." \
+    "Barbers can delete their own work schedules.",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_barber_schedule(
@@ -143,7 +146,8 @@ async def delete_barber_schedule(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
     """
-    Delete an existing barber schedule for the current barber or admin.
+    Administrators have the authority to delete barbers' work schedules.
+    Barbers can delete their own work schedules.
     """
 
     is_admin = current_user.is_admin()
