@@ -77,11 +77,11 @@ async def test_get_barbers_paginates_results(client, session_factory, barber_use
     assert response.json() == {
         "items": [
             {
-                "id": aaron.id,
-                "full_name": aaron.full_name,
-                "email": aaron.email,
-                "phone": aaron.phone,
-                "is_active": aaron.is_active,
+                "id": zoe.id,
+                "full_name": zoe.full_name,
+                "email": zoe.email,
+                "phone": zoe.phone,
+                "is_active": zoe.is_active,
                 "role": "barber",
             }
         ],

@@ -9,7 +9,7 @@ from app.core.database import User, UserRole
 from app.core.exception import NotFoundException
 from app.schemas.barber import BarberFilterParam
 
-async def get_barbers(
+async def get_filtered_barbers(
         filter: BarberFilterParam,
         db: AsyncSession
 ):
@@ -33,7 +33,9 @@ async def get_barbers(
     # pagination
     offset = (filter.page - 1) * filter.limit
     paginated_query = (
-        query.offset(offset).limit(filter.limit).order_by(User.full_name.desc())
+        query.order_by(User.full_name.asc())
+        .offset(offset)
+        .limit(filter.limit)
     )
 
     result = await db.scalars(paginated_query)

@@ -23,7 +23,7 @@ async def get_barbers(
     Get all barbers.
     """
     try:
-        items, total, pages = await barber_service.get_barbers(filter=filter, db=db)
+        items, total, pages = await barber_service.get_filtered_barbers(filter=filter, db=db)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
