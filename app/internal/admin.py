@@ -31,8 +31,8 @@ async def get_all_users(
     filter: Annotated[GetAllUsersFilterIn, Query()], admin_service: AdminServiceDep
 ):
 
-    limit = filter.limit if filter.limit is not None else 10
-    offset = (filter.page - 1) * limit if filter.page is not None else 0
+    limit = filter.limit
+    offset = (filter.page - 1) * limit
 
     users, total = await admin_service.get_all_users(
         full_name=filter.full_name,
@@ -42,8 +42,6 @@ async def get_all_users(
         limit=limit,
         offset=offset
     )
-
-    print(users, total, filter.model_dump())
 
     return create_page_response(
         items=users,

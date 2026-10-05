@@ -120,7 +120,6 @@ class AdminService:
 
 
 def get_admin_service(db: AsyncSession = Depends(get_db)) -> AdminService:
-    print("Creating AdminService with db:", db)
     return AdminService(db)
 
 

@@ -235,7 +235,6 @@ async def test_update_user_partial(
     response = await admin_client.patch(
         f"/admin/users/{customer_user.id}", json={"full_name": "Updated Name"}
     )
-    print(response.json())
     assert response.status_code == 200
     async with session_factory() as db:
         user = await db.get(User, customer_user.id)
