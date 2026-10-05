@@ -15,6 +15,9 @@ class UserAlreadyExistsException(AdminException):
     pass
 
 
+class UserNotFoundException(AdminException):
+    pass
+
 class AdminService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -27,29 +30,42 @@ class AdminService:
         phone: str | None = None,
         role: str | None = None,
         limit: int | None = None,
-        offset: int | None = None
-    ) :
+        offset: int | None = None,
+    ):
         query = select(User)
 
-        if full_name:
+        # Filters
+        if full_name is not None:
             query = query.where(User.full_name.ilike(f"%{full_name}%"))
-        if email:
+
+        if email is not None:
             query = query.where(User.email.ilike(f"%{email}%"))
-        if phone:
+
+        if phone is not None:
             query = query.where(User.phone.ilike(f"%{phone}%"))
-        if role:
+
+        if role is not None:
             query = query.where(User.role == role)
-        if limit is not None:
-            query = query.limit(limit)
-        if offset is not None:
-            query = query.offset(offset)
+
+        # Count BEFORE pagination
+        total_users = await self.db.scalar(
+            select(func.count()).select_from(query.subquery())
+        )
+
+        # Sort
         query = query.order_by(User.created_at.desc())
 
-        total_users = await self.db.scalar(select(func.count()).select_from(query.subquery()))
+        # Pagination
+        if limit is not None:
+            query = query.limit(limit)
+
+        if offset is not None:
+            query = query.offset(offset)
+
         users = await self.db.scalars(query)
+
         return users.all(), total_users
-
-
+    
     async def create_user(
         self, *, full_name: str, email: str, phone: str, password: str, role: UserRole
     ):
@@ -76,7 +92,7 @@ class AdminService:
     ):
         user = await self.db.scalar(select(User).where(User.id == user_id))
         if not user:
-            raise AdminException("User not found")
+            raise UserNotFoundException("User not found")
 
         # check if email or phone already exists for other users
         existing_user = await self.db.scalar(
@@ -104,6 +120,7 @@ class AdminService:
 
 
 def get_admin_service(db: AsyncSession = Depends(get_db)) -> AdminService:
+    print("Creating AdminService with db:", db)
     return AdminService(db)
 
 

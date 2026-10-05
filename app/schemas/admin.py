@@ -1,6 +1,6 @@
 from app.core.database import UserRole
 from app.schemas.auth import RegisterIn
-from app.schemas.common import AllOptionalMeta
+from app.schemas.common import MakeOptional
 
 from app.schemas.common import FilterParamBase
 
@@ -14,5 +14,6 @@ class CreateUserIn(RegisterIn):
     role: UserRole
 
 
-class UserUpdateIn(CreateUserIn, metaclass=AllOptionalMeta):
+
+class UserUpdateIn(CreateUserIn, MakeOptional):
     pass

@@ -30,16 +30,20 @@ router = APIRouter(
 async def get_all_users(
     filter: Annotated[GetAllUsersFilterIn, Query()], admin_service: AdminServiceDep
 ):
+
+    limit = filter.limit if filter.limit is not None else 10
+    offset = (filter.page - 1) * limit if filter.page is not None else 0
+
     users, total = await admin_service.get_all_users(
         full_name=filter.full_name,
         email=filter.email,
         phone=filter.phone,
         role=filter.role,
-        limit=filter.limit,
-        offset=filter.page * filter.limit
-        if filter.page is not None and filter.limit is not None
-        else None,
+        limit=limit,
+        offset=offset
     )
+
+    print(users, total, filter.model_dump())
 
     return create_page_response(
         items=users,
@@ -82,15 +86,21 @@ async def update_user(
 
 _MAP_EXCEPTION_TO_HTTP_STATUS = {
     UserAlreadyExistsException: lambda e: HTTPException(
-        status_code=400, detail=e or "User with this email or phone already exists"
+        status_code=409, detail=e or "User with this email or phone already exists"
+    ),
+    UserNotFoundException: lambda e: HTTPException(
+        status_code=404, detail=e or "User not found"
     ),
 }
 
 
 def handle_domain_exception(req: Request, exc: Exception) -> JSONResponse:
+
+    assert isinstance(exc, AdminException), "Exception must be an instance of AdminException"
+
     exception_type = type(exc)
     if exception_type in _MAP_EXCEPTION_TO_HTTP_STATUS:
-        http_exception = _MAP_EXCEPTION_TO_HTTP_STATUS[exception_type](exc)
+        http_exception = _MAP_EXCEPTION_TO_HTTP_STATUS[exception_type](str(exc))
         status_code = camel_to_upper_snake_case(exception_type.__name__)
         return create_error_response(
             status_code=http_exception.status_code,

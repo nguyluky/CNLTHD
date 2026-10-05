@@ -70,6 +70,10 @@ app.add_exception_handler(
     auth.AuthException, 
     auth.handle_domain_exception
 )
+app.add_exception_handler(
+    admin.AdminException,
+    admin.handle_domain_exception
+)
 
 @app.get("/health")
 async def health():

@@ -73,6 +73,7 @@ async def test_admin_rejects_inactive_admin(
     assert response.json()["message"] == "Inactive user"
 
 
+
 async def test_list_users(admin_client, admin_user, customer_user, barber_user):
     response = await admin_client.get("/admin/users")
     assert response.status_code == 200
@@ -234,6 +235,7 @@ async def test_update_user_partial(
     response = await admin_client.patch(
         f"/admin/users/{customer_user.id}", json={"full_name": "Updated Name"}
     )
+    print(response.json())
     assert response.status_code == 200
     async with session_factory() as db:
         user = await db.get(User, customer_user.id)
