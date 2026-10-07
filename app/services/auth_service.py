@@ -122,42 +122,42 @@ class AuthService:
         # hash SHA256
         refresh_token_hash = hash_sha256(refresh_token)
 
-        session_token = SessionToken()
+        session = SessionToken()
 
-        session_token.user_id = user.id
-        session_token.refresh_token_hash = refresh_token_hash
-        session_token.device_id = device_info["device_id"]
-        session_token.device_name = device_info["device_name"]
-        session_token.device_type = device_info["device_type"]
-        session_token.os = device_info["os"]
-        session_token.browser = device_info["browser"]
-        session_token.ip_address = device_info["ip_address"]
-        session_token.user_agent = device_info["user_agent"]
+        session.user_id = user.id
+        session.refresh_token_hash = refresh_token_hash
+        session.device_id = device_info["device_id"]
+        session.device_name = device_info["device_name"]
+        session.device_type = device_info["device_type"]
+        session.os = device_info["os"]
+        session.browser = device_info["browser"]
+        session.ip_address = device_info["ip_address"]
+        session.user_agent = device_info["user_agent"]
 
-        session_token.expired_at = (
+        session.expired_at = (
             datetime.now(timezone.utc) + refresh_token_expires_delta
         )
 
-        self.db.add(session_token)
+        self.db.add(session)
         await self.db.commit()
-        await self.db.refresh(session_token)
+        await self.db.refresh(session)
 
-        return refresh_token, session_token
+        return refresh_token, session
 
     def generate_access_token_from_session(
-        self, *, user: User, session_token: SessionToken
+        self, *, user: User, session: SessionToken
     ):
         access_token_expires_delta = timedelta(
             minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES
         )
         access_token = user.create_access_token(
-            expires_delta=access_token_expires_delta, sid=f"session_{session_token.id}"
+            expires_delta=access_token_expires_delta, sid=f"session_{session.id}"
         )
         return access_token
 
-    async def get_session_token_by_refresh_token(self, *, refresh_token: str):
+    async def get_session_by_refresh_token(self, *, refresh_token: str):
         refresh_token_hash = hash_sha256(refresh_token)
-        session_token = await self.db.execute(
+        session = await self.db.execute(
             select(SessionToken).where(
                 SessionToken.refresh_token_hash == refresh_token_hash
             ).options(
@@ -165,68 +165,68 @@ class AuthService:
                 selectinload(SessionToken.user)
             )
         )
-        session_token = session_token.scalar_one_or_none()
+        session = session.scalar_one_or_none()
 
-        if not session_token:
+        if not session:
             raise RefreshTokenNotFoundException(
                 "Refresh token not found or expired. Please login again."
             )
 
-        if session_token.revoked_at is not None:
+        if session.revoked_at is not None:
             raise RefreshTokenNotFoundException(
                 "Refresh token has been revoked. Please login again."
             )
         
-        if session_token.expired_at < datetime.now():
+        if session.expired_at < datetime.now():
             raise TokenExpiredException(
                 "Refresh token has expired. Please login again."
             )
 
-        return session_token
+        return session
 
-    async def regenerate_refresh_token(self, *, session_token: SessionToken):
+    async def regenerate_refresh_token(self, *, session: SessionToken):
         refresh_token_expires_delta = timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
         new_refresh_token = str(uuid.uuid4())
         new_refresh_token_hash = hash_sha256(new_refresh_token)
 
-        session_token.refresh_token_hash = new_refresh_token_hash
-        session_token.expired_at = (
+        session.refresh_token_hash = new_refresh_token_hash
+        session.expired_at = (
             datetime.now(timezone.utc) + refresh_token_expires_delta
         )
 
-        self.db.add(session_token)
+        self.db.add(session)
         await self.db.commit()
-        await self.db.refresh(session_token)
+        await self.db.refresh(session)
 
-        return new_refresh_token, session_token
+        return new_refresh_token, session
 
-    async def revoke_session_token(self, *, session_token: SessionToken):
-        session_token.revoked_at = datetime.now(timezone.utc)
-        self.db.add(session_token)
+    async def revoke_session(self, *, session: SessionToken):
+        session.revoked_at = datetime.now(timezone.utc)
+        self.db.add(session)
         await self.db.commit()
-        await self.db.refresh(session_token)
+        await self.db.refresh(session)
 
-        return session_token
+        return session
 
-    async def revoke_all_session_tokens_for_user(self, *, user: User):
+    async def revoke_all_sessions_for_user(self, *, user: User):
         await self.db.execute(
             select(SessionToken).where(SessionToken.user_id == user.id)
         )
-        session_tokens = await self.db.scalars(
+        sessions = await self.db.scalars(
             select(SessionToken).where(SessionToken.user_id == user.id)
         )
-        for session_token in session_tokens:
-            session_token.revoked_at = datetime.now(timezone.utc)
-            self.db.add(session_token)
+        for session in sessions:
+            session.revoked_at = datetime.now(timezone.utc)
+            self.db.add(session)
         await self.db.commit()
 
-    async def get_active_session_tokens_for_user(self, *, user: User):
-        session_tokens = await self.db.scalars(
+    async def get_active_sessions_for_user(self, *, user: User):
+        session = await self.db.scalars(
             select(SessionToken)
             .where(SessionToken.user_id == user.id)
             .where(SessionToken.revoked_at.is_(None))
         )
-        return session_tokens.all()
+        return session.all()
 
     async def get_user_by_email(self, *, email: str):
         user = await self.db.scalar(select(User).where(User.email == email))

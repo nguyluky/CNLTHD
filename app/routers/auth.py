@@ -118,7 +118,7 @@ async def login(
     )
 
     access_token = auth_service.generate_access_token_from_session(
-        user=user, session_token=session_token
+        user=user, session=session_token
     )
 
     return {
@@ -146,16 +146,16 @@ async def refresh_token(
     - **client_secret**: The client secret
     """
 
-    session_token = await auth_service.get_session_token_by_refresh_token(
+    session_token = await auth_service.get_session_by_refresh_token(
         refresh_token=data.refresh_token
     )
 
     new_refresh_token, session_token = await auth_service.regenerate_refresh_token(
-        session_token=session_token
+        session=session_token
     )
 
     new_access_token = auth_service.generate_access_token_from_session(
-        user=session_token.user, session_token=session_token
+        user=session_token.user, session=session_token
     )
 
     return {
@@ -182,11 +182,11 @@ async def logout(
     - **client_secret**: The client secret
     """
 
-    session_token = await auth_service.get_session_token_by_refresh_token(
+    session_token = await auth_service.get_session_by_refresh_token(
         refresh_token=data.refresh_token
     )
 
-    await auth_service.revoke_session_token(session_token=session_token)
+    await auth_service.revoke_session(session=session_token)
 
     return {
         "message": "Logout successful",
@@ -209,11 +209,11 @@ async def logout_all(
     - **client_secret**: The client secret
     """
 
-    session_token = await auth_service.get_session_token_by_refresh_token(
+    session_token = await auth_service.get_session_by_refresh_token(
         refresh_token=data.refresh_token
     )
 
-    await auth_service.revoke_all_session_tokens_for_user(user=session_token.user)
+    await auth_service.revoke_all_sessions_for_user(user=session_token.user)
 
     return {
         "message": "Logout from all devices successful",
@@ -234,7 +234,7 @@ async def get_active_devices(
     Get all active devices for the current user.
     """
 
-    active_devices = await auth_service.get_active_session_tokens_for_user(
+    active_devices = await auth_service.get_active_sessions_for_user(
         user=current_user
     )
 
