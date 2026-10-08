@@ -80,6 +80,11 @@ class User(Base):
         cascade="all, delete-orphan",
     )
 
+    tokens: Mapped[list["SessionToken"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, full_name='{self.full_name}', email='{self.email}', role='{self.role.name}', created_at='{self.created_at}')>"
 
@@ -89,12 +94,11 @@ class User(Base):
     def hash_password(self, password: str) -> None:
         self.hashed_password = get_password_hash(password)
 
-    def create_access_token(self, expires_delta: timedelta | None = None) -> str:
+    def create_access_token(self, expires_delta: timedelta, sid: str | None) -> str:
         return create_access_token(
-            data={"sub": self.email, "role": self.role.name},
+            data={"sub": self.email, "role": self.role.name, "type": "access", "sid": sid},
             expires_delta=expires_delta,
         )
-
 
     def is_admin(self) -> bool:
         return self.role == UserRole.admin
@@ -104,6 +108,42 @@ class User(Base):
 
     def is_barber(self) -> bool:
         return self.role == UserRole.barber
+
+
+class SessionToken(Base):
+    __tablename__ = "session_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    user: Mapped["User"] = relationship("User", back_populates="tokens")
+
+    refresh_token_hash: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True
+    )
+    # device info
+    # device_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    # device_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    # device_type: Mapped[str] = mapped_column(String(255), nullable=True)
+    # os: Mapped[str] = mapped_column(String(255), nullable=True)
+    # browser: Mapped[str] = mapped_column(String(255), nullable=True)
+
+    # ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
+    # user_agent: Mapped[str] = mapped_column(String(255), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+    last_activity_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=func.now()
+    )
+    expired_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class Service(Base):

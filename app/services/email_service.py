@@ -15,6 +15,11 @@ class EmailServiceInterface:
     ) -> dict | None:
         raise NotImplementedError
 
+    async def send_reset_password_email(
+        self, to: str, reset_link: str
+    ) -> dict | None:
+        raise NotImplementedError
+
 
 class EmailService(EmailServiceInterface):
     # static hold instance of EmailService
@@ -30,6 +35,10 @@ class EmailService(EmailServiceInterface):
         self.client = AsyncBird(api_key=api_key)
         self.confirmation_email_template = open(
             "email_templates/confirmation.html", "r"
+        ).read()
+
+        self.reset_password_email_template = open(
+            "email_templates/reset_password.html", "r"
         ).read()
 
     async def send_email(self, to: str, subject: str, html: str) -> dict | None:
@@ -76,6 +85,37 @@ class EmailService(EmailServiceInterface):
 
         return await self.send_email(to, subject, html_content)
 
+    async def send_reset_password_email(
+        self, to: str, reset_link: str
+    ) -> dict | None:
+        """
+        Send a reset password email to the specified recipient.
+
+        Args:
+            to (str): Recipient email address.
+
+        Returns:
+            dict: Response from the Bird API.
+        """
+        subject = "Reset your password"
+        html_content = f"""
+        <html>
+        <body>
+            <p>Click the link below to reset your password:</p>
+            <a href="{reset_link}">Reset Password</a>
+        </body>
+        </html>
+        """
+
+        return await self.send_email(to, subject, html_content)
+
+class EmailServiceFactory:
+    @staticmethod
+    def create_email_service() -> EmailServiceInterface:
+        if config.BIRD_API_KEY is None:
+            return MockEmailService()
+        else:
+            return EmailService.get_instance(api_key=config.BIRD_API_KEY)
 
 class MockEmailService(EmailServiceInterface):
     async def send_email(self, to: str, subject: str, html: str) -> dict | None:
@@ -90,6 +130,16 @@ class MockEmailService(EmailServiceInterface):
     ) -> dict | None:
         logger.info(
             f"Mock send confirmation email to {to} with link '{confirmation_link}'"
+        )
+        return {
+            "id": "mock_id",
+            "status": "mock_status",
+        }
+    async def send_reset_password_email(
+        self, to: str, reset_link: str
+    ) -> dict | None:
+        logger.info(
+            f"Mock send reset password email to {to} with link '{reset_link}'"
         )
         return {
             "id": "mock_id",
