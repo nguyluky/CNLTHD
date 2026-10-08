@@ -1,6 +1,4 @@
 import math
-from datetime import datetime, time, timedelta
-
 from sqlalchemy.exc import SQLAlchemyError
 from app.schemas.barber_schedule import BarberScheduleFilterParam
 from sqlalchemy import func, select, update
@@ -116,5 +114,3 @@ async def delete_barber_schedule(
     except SQLAlchemyError as e:
         await db.rollback()
         raise e
-
-    

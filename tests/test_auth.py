@@ -22,12 +22,12 @@ def confirmation_token(email_service):
 async def test_register_user(
     client,
     session_factory,
-    customer_data,
+    customer_dataA,
     cache,
     redis_client,
     email_service,
 ):
-    response = await client.post("/auth/register", json=customer_data)
+    response = await client.post("/auth/register", json=customer_dataA)
     assert response.status_code == 201
     assert response.json() == {
         "message": "User registered successfully. Please check your email to confirm your registration."
@@ -35,12 +35,10 @@ async def test_register_user(
     token = confirmation_token(email_service)
     assert str(UUID(token)) == token
     email_service.send_confirmation_email.assert_awaited_once_with(
-        to=customer_data["email"],
+        to=customer_dataA["email"],
         confirmation_link=f"{config.BASE_URL}/auth/confirm/{token}",
     )
-    assert (
-        await cache.get(f"register:{token}", eviction_group="register") == customer_data
-    )
+    assert await cache.get(f"register:{token}", eviction_group="register") == customer_dataA
     keys = await redis_client.keys(f"*register:{token}")
     assert len(keys) == 1
     assert 0 < await redis_client.ttl(keys[0]) <= 3600
@@ -49,7 +47,7 @@ async def test_register_user(
 
 
 async def test_confirm_registration(
-    client, session_factory, customer_data, cache, email_service
+    client, session_factory, customer_dataA, cache, email_service
 ):
     """
     nghiệm vụ:
@@ -58,7 +56,7 @@ async def test_confirm_registration(
     3. kiểm tra token đã bị xóa khỏi cache và Redis | user đã được tạo trong database
     """
 
-    response = await client.post("/auth/register", json=customer_data)
+    response = await client.post("/auth/register", json=customer_dataA)
     assert response.status_code == 201
     token = confirmation_token(email_service)
     response = await client.post(f"/auth/confirm/{token}")
@@ -67,12 +65,12 @@ async def test_confirm_registration(
     assert await cache.get(f"register:{token}", eviction_group="register") is None
 
     async with session_factory() as db:
-        user = await db.scalar(select(User).where(User.email == customer_data["email"]))
+        user = await db.scalar(select(User).where(User.email == customer_dataA["email"]))
         assert user is not None
-        assert user.full_name == customer_data["full_name"]
-        assert user.phone == customer_data["phone"]
-        assert user.hashed_password != customer_data["password"]
-        assert user.verify_password(customer_data["password"])
+        assert user.full_name == customer_dataA["full_name"]
+        assert user.phone == customer_dataA["phone"]
+        assert user.hashed_password != customer_dataA["password"]
+        assert user.verify_password(customer_dataA["password"])
 
     response = await client.post(f"/auth/confirm/{token}")
     assert response.status_code == 404
@@ -83,7 +81,7 @@ async def test_confirm_registration(
 
 @pytest.mark.parametrize("duplicate_field", ["email", "phone", "both"])
 async def test_register_existing_user(
-    client, session_factory, customer_data, duplicate_field, email_service
+    client, session_factory, customer_dataA, duplicate_field, email_service
 ):
     """
     nghiệm vụ:
@@ -93,7 +91,7 @@ async def test_register_existing_user(
     4. xác nhận rằng email_service.send_confirmation_email không được gọi và số lượng user trong database vẫn là 1
     """
 
-    response = await client.post("/auth/register", json=customer_data)
+    response = await client.post("/auth/register", json=customer_dataA)
     assert response.status_code == 201
 
     response = await client.post(f"/auth/confirm/{confirmation_token(email_service)}")
@@ -101,14 +99,14 @@ async def test_register_existing_user(
     email_service.reset_mock()
 
     other_user = {
-        **customer_data,
+        **customer_dataA,
         "full_name": "Another User",
         "email": "another@example.com",
         "phone": "0907654321",
     }
     for field in ("email", "phone"):
         if duplicate_field in (field, "both"):
-            other_user[field] = customer_data[field]
+            other_user[field] = customer_dataA[field]
 
     response = await client.post("/auth/register", json=other_user)
     assert response.status_code == 400
@@ -121,7 +119,7 @@ async def test_register_existing_user(
     response = await client.post(
         "/auth/register",
         json={
-            **customer_data,
+            **customer_dataA,
             "email": "new@example.com",
             "phone": "0909999999",
         },
@@ -131,10 +129,10 @@ async def test_register_existing_user(
 
 @pytest.mark.parametrize("missing_field", ["full_name", "email", "password", "phone"])
 async def test_register_missing_field(
-    client, customer_data, missing_field, email_service, redis_client
+    client, customer_dataA, missing_field, email_service, redis_client
 ):
-    del customer_data[missing_field]
-    response = await client.post("/auth/register", json=customer_data)
+    del customer_dataA[missing_field]
+    response = await client.post("/auth/register", json=customer_dataA)
     assert response.status_code == 400
     assert response.json()["error_code"] == "VALIDATION_ERROR"
     email_service.send_confirmation_email.assert_not_awaited()
@@ -150,9 +148,9 @@ async def test_confirm_unknown_token(client, session_factory):
 
 
 async def test_confirm_expired_token(
-    client, customer_data, email_service, redis_client, session_factory
+    client, customer_dataA, email_service, redis_client, session_factory
 ):
-    response = await client.post("/auth/register", json=customer_data)
+    response = await client.post("/auth/register", json=customer_dataA)
     assert response.status_code == 201
     token = confirmation_token(email_service)
     keys = await redis_client.keys(f"*register:{token}")
@@ -204,14 +202,14 @@ async def test_login_invalid_credentials(client, registered_user, field, value):
     assert "access_token" not in response.json()
 
 
-async def test_login_unconfirmed_user(client, customer_data):
-    response = await client.post("/auth/register", json=customer_data)
+async def test_login_unconfirmed_user(client, customer_dataA):
+    response = await client.post("/auth/register", json=customer_dataA)
     assert response.status_code == 201
     response = await client.post(
         "/auth/login",
         data={
-            "username": customer_data["email"],
-            "password": customer_data["password"],
+            "username": customer_dataA["email"],
+            "password": customer_dataA["password"],
         },
     )
     assert response.status_code == 401
@@ -356,11 +354,11 @@ async def test_logout_only_revokes_current_session(
 
 
 async def test_logout_all_preserves_other_users_sessions(
-    client, login_user, registered_user, register_user, barber_data, session_factory
+    client, login_user, registered_user, register_user, barber_dataA, session_factory
 ):
     first = await login_user(registered_user)
     second = await login_user(registered_user)
-    other_user = await register_user(barber_data)
+    other_user = await register_user(barber_dataA)
     other = await login_user(other_user)
     response = await client.post(
         "/auth/logout_all", data={"refresh_token": first["refresh_token"]}
@@ -382,12 +380,12 @@ async def test_devices_requires_authentication(client):
 
 
 async def test_devices_lists_only_current_users_active_sessions(
-    client, login_user, registered_user, register_user, barber_data
+    client, login_user, registered_user, register_user, barber_dataA
 ):
     current = await login_user(registered_user)
     revoked = await login_user(registered_user)
 
-    other_user = await register_user(barber_data)
+    other_user = await register_user(barber_dataA)
     other = await login_user(other_user)
 
     response = await client.post(
@@ -487,13 +485,13 @@ async def test_reset_password(
 
 @pytest.mark.parametrize("expired", [False, True])
 async def test_reset_password_invalid_token(
-    client, customer_user, cache, redis_client, session_factory, customer_data, expired
+    client, customer_userA, cache, redis_client, session_factory, customer_dataA, expired
 ):
     token = "invalid-reset-token"
     if expired:
         await cache.set(
             f"forgot_password:{token}",
-            {"user_id": customer_user.id},
+            {"user_id": customer_userA.id},
             ttl=3600,
             eviction_group="forgot_password",
         )
@@ -506,8 +504,8 @@ async def test_reset_password_invalid_token(
     assert response.status_code == 404
     assert response.json()["error_code"] == "PASSWORD_RESET_TOKEN_NOT_FOUND_EXCEPTION"
     async with session_factory() as db:
-        user = await db.get(User, customer_user.id)
-        assert user.verify_password(customer_data["password"])
+        user = await db.get(User, customer_userA.id)
+        assert user.verify_password(customer_dataA["password"])
 
 
 async def test_reset_password_deleted_user(client, cache):

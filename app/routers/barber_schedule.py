@@ -1,13 +1,13 @@
+from redis_fastapi import CacheBackendDep
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Annotated
 from app.core.exception import NotFoundException
-from app.core.database import BarberSchedule, UserRole, get_db, User
+from app.core.database import UserRole, get_db, User
 from app.schemas.barber_schedule import BarberScheduleFilterParam, BarberScheduleOut, BarberScheduleCreateIn, BarberScheduleUpdateIn
 from app.dependencies import require_roles
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from app.services import barber_schedule_service
+from app.services import barber_service, barber_schedule_service
 from app.schemas.common import PageResponse
 
 router = APIRouter(prefix="/barber_schedules", tags=["Barber Schedule"])
@@ -65,6 +65,7 @@ async def get_barber_schedules(
 async def create_barber_schedule(
     barber_id: int,
     body: BarberScheduleCreateIn,
+    redis: CacheBackendDep,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
@@ -87,6 +88,8 @@ async def create_barber_schedule(
         barber_schedule = await barber_schedule_service.create_barber_schedule(barber_id, body=create_data, db=db)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await redis.delete_group("available_slot")
     
     return barber_schedule
 
@@ -101,6 +104,7 @@ async def update_barber_schedule(
     barber_id: int,
     schedule_id: int,
     body: BarberScheduleUpdateIn,
+    redis: CacheBackendDep,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
@@ -131,6 +135,8 @@ async def update_barber_schedule(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
+    await redis.delete_group("available_slot")
+
     return barber_schedule
 
 @router.delete(
@@ -142,6 +148,7 @@ async def update_barber_schedule(
 async def delete_barber_schedule(
     barber_id: int,
     schedule_id: int,
+    redis: CacheBackendDep,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber))
 ):
@@ -171,3 +178,4 @@ async def delete_barber_schedule(
     except SQLAlchemyError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+    await redis.delete_group("available_slot")

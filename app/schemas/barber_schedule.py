@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from datetime import time
+from datetime import date, time
 from typing import Optional
 
 from app.schemas.common import FilterParamBase
@@ -31,3 +31,12 @@ class BarberScheduleOut(BarberScheduleBase):
 class BarberScheduleFilterParam(FilterParamBase):
     date_of_week: Optional[int] = Field(default=None, ge=0, le=6)
     is_off: Optional[bool] = None
+
+class TimeSlotSchema(BaseModel):
+    start_time: time
+    end_time: time
+
+class AvailableSlotOut(BaseModel):
+    booking_date: date
+    slot_duration_minutes: int
+    available_slots: list[TimeSlotSchema]
