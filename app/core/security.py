@@ -4,6 +4,7 @@
 # create_access_token(user)	Tạo và ký JWT.
 
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import jwt
 from pwdlib import PasswordHash
@@ -31,7 +32,11 @@ def hash_sha256(text: str) -> str:
 def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + expires_delta
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": expire,
+        # nếu tạo liên tiếp 2 token tùng user thì jti sẽ khác nhau, giúp tránh việc 2 token giống nhau
+        "jti": str(uuid.uuid4()),
+    })
     encoded_jwt = jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
     return encoded_jwt
 
