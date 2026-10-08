@@ -86,10 +86,10 @@ async def create_barber_schedule(
 
     try:
         barber_schedule = await barber_schedule_service.create_barber_schedule(barber_id, body=create_data, db=db)
-
-        await barber_service.invalidate_available_slots_cache(redis=redis)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await redis.delete_group("available_slot")
     
     return barber_schedule
 
@@ -132,10 +132,10 @@ async def update_barber_schedule(
             body=new_data,
             db=db
         )
-
-        await barber_service.invalidate_available_slots_cache(redis=redis)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    await redis.delete_group("available_slot")
 
     return barber_schedule
 
@@ -173,10 +173,9 @@ async def delete_barber_schedule(
             barber_id=barber_id,
             db=db
         )
-
-        await barber_service.invalidate_available_slots_cache(redis=redis)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except SQLAlchemyError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+    await redis.delete_group("available_slot")

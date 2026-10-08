@@ -1,6 +1,5 @@
-import json
 import math
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 import math
 from redis_fastapi import CacheBackend
 from sqlalchemy import func, select
@@ -13,7 +12,6 @@ from redis_fastapi import CacheBackend
 
 BUFFER_MINUTES = 10
 DEFAULT_SLOT_DURATION = 30
-CACHE_EXPIRE_SECONDS = 300 # 5 minutes
 
 async def get_filtered_barbers(
         filter: BarberFilterParam,
@@ -64,14 +62,8 @@ async def get_available_slot_minutes(
     barber_id: int,
     target_date: date,
     db: AsyncSession,
-    redis: CacheBackend,
     slot_duration: int = DEFAULT_SLOT_DURATION,
 ):
-    redis_key = f"barber:{barber_id}:available_slots:{target_date.isoformat()}:{slot_duration}"
-    cached_data = await redis.get(redis_key, eviction_group="available_slot")
-    if cached_data:
-        return json.loads(cached_data)
-
     date_of_week = target_date.weekday()
     schedules = (await db.scalars(
         select(BarberSchedule)
@@ -83,12 +75,6 @@ async def get_available_slot_minutes(
     )).all()
 
     if not schedules:
-        await redis.set(
-            redis_key, 
-            json.dumps([]), 
-            ttl=CACHE_EXPIRE_SECONDS, 
-            eviction_group="available_slot"
-        )
         return []
 
     existing_bookings = (await db.scalars(
@@ -127,12 +113,4 @@ async def get_available_slot_minutes(
 
             curr_time += timedelta(minutes=slot_duration)
 
-    # cache into redis
-    await redis.set(redis_key, json.dumps(available_slots), ttl=CACHE_EXPIRE_SECONDS, eviction_group="available_slot")
-
-    return available_slots
-
-async def invalidate_available_slots_cache(
-    redis: CacheBackend,
-):
-    await redis.delete_group("available_slot")
+    return available_slots   

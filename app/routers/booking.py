@@ -19,7 +19,6 @@ from app.schemas.booking import (
 )
 from app.schemas.common import PageResponse
 from app.services import booking_service
-from app.services.barber_service import invalidate_available_slots_cache
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -119,10 +118,10 @@ async def create_booking(
             service_ids=body.service_ids, 
             db=db,
         )
-
-        await invalidate_available_slots_cache(redis=redis)
     except RequestedServiceForBookingNotFound as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    await redis.delete_group("available_slot")
 
     return booking
 
@@ -162,7 +161,7 @@ async def update_booking_status(
         )
 
     await booking_service.update_booking_status(booking, body.status, db)
-    await invalidate_available_slots_cache(redis=redis)
+    await redis.delete_group("available_slot")
 
     return {"message": "Update Booking status successfully"}
 
@@ -205,7 +204,7 @@ async def cancel_booking(
         )
 
     await booking_service.update_booking_status(booking, BookingStatus.cancelled, db)
-    await invalidate_available_slots_cache(redis=redis)
+    await redis.delete_group("available_slot")
 
     return {"message": "Cancel Booking successfully"}
 
@@ -250,6 +249,6 @@ async def update_booking_schedule(
     await booking_service.update_booking_schedule(
         booking=booking, update_data=update_data, db=db
     )
-    await invalidate_available_slots_cache(redis=redis)
+    await redis.delete_group("available_slot")
 
     return {"message": "Reschedule Booking successfully"}

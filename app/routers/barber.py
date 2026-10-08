@@ -1,4 +1,5 @@
 from datetime import date
+import json
 
 from redis_fastapi import CacheBackendDep
 
@@ -77,13 +78,23 @@ async def get_available_slots(
     slot_duration: int = Query(30, description="specified slot duration in minutes"),
     db: AsyncSession = Depends(get_db),
 ):
+    available_slots = []
+    
+    redis_key = f"barber:{barber_id}:available_slots:{booking_date.isoformat()}:{slot_duration}"
+    cached_data = await redis.get(redis_key, eviction_group="available_slot")
+    if cached_data:
+        available_slots = json.loads(cached_data)
+    
     available_slots = await barber_service.get_available_slot_minutes(
         barber_id=barber_id, 
         target_date=booking_date,
         db=db,
-        redis=redis,
         slot_duration=slot_duration
     )
+
+    # cache into redis
+    await redis.set(redis_key, json.dumps(available_slots), ttl=300, eviction_group="available_slot")
+    
     return {
         "booking_date": booking_date,
         "slot_duration_minutes": slot_duration,
