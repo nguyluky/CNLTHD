@@ -81,8 +81,8 @@ async def test_get_services_includes_inactive_services(
     assert body["items"][0]["is_active"] is False
 
 
-async def test_get_services_requires_admin(client, create_auth_client_for_user, customer_user):
-    client = await create_auth_client_for_user(customer_user)
+async def test_get_services_requires_admin(client, create_auth_client_for_user, customer_userA):
+    client = await create_auth_client_for_user(customer_userA)
 
     response = await client.get("/admin/services")
 

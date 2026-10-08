@@ -1,7 +1,6 @@
 """Shared fixtures; each test receives fresh database, Redis, and email state."""
 
-from datetime import timedelta
-from typing import Optional
+from datetime import date, datetime, time, timedelta
 from unittest.mock import AsyncMock
 from urllib.parse import urlparse
 
@@ -13,7 +12,7 @@ from redis_fastapi.deps import get_cache_backend
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from decimal import Decimal
 
-from app.core.database import Base, User, UserRole, get_db, Service
+from app.core.database import BarberSchedule, Base, Booking, BookingService, BookingStatus, User, UserRole, get_db, Service
 from app.services.email_service import EmailServiceInterface
 from app.core.security import create_access_token
 from app.dependencies import get_email_service
@@ -73,32 +72,40 @@ async def client(session_factory, cache, email_service):
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous_overrides)
 
-
-# @pytest.fixture
-# def user_data():
-#     return {
-#         "full_name": "Test User",
-#         "email": "test@example.com",
-#         "password": "testpassword",
-#         "phone": "0901234567",
-#     }
-
 @pytest.fixture
-def customer_data():
+def customer_dataA():
     return {
-        "full_name": "Test customer",
-        "email": "customer@example.com",
+        "full_name": "Test customerA",
+        "email": "customera@example.com",
         "password": "customerpassword",
         "phone": "0901234678",
     }
 
 @pytest.fixture
-def barber_data():
+def barber_dataA():
     return {
-        "full_name": "Test barber",
-        "email": "barber@example.com",
+        "full_name": "Test barberA",
+        "email": "barbera@example.com",
         "password": "barberpassword",
         "phone": "0901234789",
+    }
+
+@pytest.fixture
+def customer_dataB():
+    return {
+        "full_name": "Test customerB",
+        "email": "customerb@example.com",
+        "password": "customerpassword",
+        "phone": "0901234123",
+    }
+
+@pytest.fixture
+def barber_dataB():
+    return {
+        "full_name": "Test barberB",
+        "email": "barberb@example.com",
+        "password": "barberpassword",
+        "phone": "0901234456",
     }
 
 @pytest.fixture
@@ -139,17 +146,19 @@ async def register_user(session_factory):
 
 
 @pytest.fixture
-async def registered_user(register_user, customer_data):
-    return await register_user(customer_data)
+async def registered_user(register_user, customer_dataA):
+    return await register_user(customer_dataA)
 
 
 @pytest.fixture
-async def create_auth_client_for_user(client, session_factory):
+async def create_auth_client_for_user(client, session_factory, cache):
     async def create_client(
         user: User,
     ):
         token = user.create_access_token(expires_delta=timedelta(hours=1), sid=None)
         client.headers.update({"Authorization": f"Bearer {token}"})
+
+        app.dependency_overrides[get_cache_backend] = lambda: cache
         return client
 
     return create_client
@@ -157,30 +166,60 @@ async def create_auth_client_for_user(client, session_factory):
 
 
 @pytest.fixture
-async def customer_user(session_factory, customer_data):
+async def customer_userA(session_factory, customer_dataA):
     async with session_factory() as db:
         user = User(
-            full_name = customer_data["full_name"],
-            email = customer_data["email"],
-            phone = customer_data["phone"],
+            full_name = customer_dataA["full_name"],
+            email = customer_dataA["email"],
+            phone = customer_dataA["phone"],
             role=UserRole.customer
         )
-        user.hash_password(customer_data["password"])
+        user.hash_password(customer_dataA["password"])
         db.add(user)
         await db.commit()
 
     return user
 
 @pytest.fixture
-async def barber_user(session_factory, barber_data):
+async def barber_userA(session_factory, barber_dataA):
     async with session_factory() as db:
         user = User(
-            full_name = barber_data["full_name"],
-            email = barber_data["email"],
-            phone = barber_data["phone"],
+            full_name = barber_dataA["full_name"],
+            email = barber_dataA["email"],
+            phone = barber_dataA["phone"],
             role=UserRole.barber
         )
-        user.hash_password(barber_data["password"])
+        user.hash_password(barber_dataA["password"])
+        db.add(user)
+        await db.commit()
+
+    return user
+
+@pytest.fixture
+async def customer_userB(session_factory, customer_dataB):
+    async with session_factory() as db:
+        user = User(
+            full_name = customer_dataB["full_name"],
+            email = customer_dataB["email"],
+            phone = customer_dataB["phone"],
+            role=UserRole.customer
+        )
+        user.hash_password(customer_dataB["password"])
+        db.add(user)
+        await db.commit()
+
+    return user
+
+@pytest.fixture
+async def barber_userB(session_factory, barber_dataB):
+    async with session_factory() as db:
+        user = User(
+            full_name = barber_dataB["full_name"],
+            email = barber_dataB["email"],
+            phone = barber_dataB["phone"],
+            role=UserRole.barber
+        )
+        user.hash_password(barber_dataB["password"])
         db.add(user)
         await db.commit()
 
@@ -232,3 +271,116 @@ async def sample_services(session_factory):
         for service in services:
             await db.refresh(service)
     return services
+
+@pytest.fixture
+async def sample_bookings(session_factory, customer_userA, customer_userB, barber_userA, barber_userB, sample_services):
+    bookings = [
+        Booking(
+            id=1,
+            customer_id=customer_userA.id,
+            barber_id=barber_userA.id,
+            booking_date=date.today(),
+            start_time=time(9, 0),
+            end_time=(datetime.combine(date.today(), time(9, 0)) + timedelta(minutes=float((sample_services[0].duration_minutes + sample_services[1].duration_minutes)))).time(),
+            total_price=100000,
+            status=BookingStatus.pending,
+        ),
+        Booking(
+            id=2,
+            customer_id=customer_userB.id,
+            barber_id=barber_userB.id,
+            booking_date=date.today(),
+            start_time=time(10, 0),
+            end_time=(datetime.combine(date.today(), time(10, 0)) + timedelta(minutes=float(sample_services[0].duration_minutes))).time(),
+            total_price=100000,
+            status=BookingStatus.pending,
+        ),
+        Booking(
+            id=3,
+            customer_id=customer_userB.id,
+            barber_id=barber_userB.id,
+            booking_date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(10, 30),
+            total_price=100000,
+            status=BookingStatus.completed,
+        ),
+        Booking(
+            id=4,
+            customer_id=customer_userB.id,
+            barber_id=barber_userB.id,
+            booking_date=date.today(),
+            start_time=time(10, 0),
+            end_time=time(10, 30),
+            total_price=100000,
+            status=BookingStatus.confirmed,
+        )
+    ]
+
+    async with session_factory() as db:
+        db.add_all(bookings)
+        await db.commit()
+        for b in bookings:
+            await db.refresh(b)
+
+    return bookings
+
+@pytest.fixture
+async def sample_booking_services(session_factory, sample_bookings, sample_services):
+    booking_services = [
+        BookingService(
+            booking_id=sample_bookings[0].id,
+            service_id=sample_services[0].id,
+            price_at_booking=sample_services[0].price,
+        ),
+        BookingService(
+            booking_id=sample_bookings[0].id,
+            service_id=sample_services[1].id,
+            price_at_booking=sample_services[1].price,
+        ),
+        BookingService(
+            booking_id=sample_bookings[1].id,
+            service_id=sample_services[0].id,
+            price_at_booking=sample_services[0].price,
+        ),
+    ]
+
+    async with session_factory() as db:
+        db.add_all(booking_services)
+        await db.commit()
+        for bs in booking_services:
+            await db.refresh(bs)
+
+@pytest.fixture
+async def sample_barber_schedules(session_factory, barber_userA, barber_userB):
+    
+    schedules: list[BarberSchedule] = [] 
+    # Baber A
+    for day in range(7):
+        schedules.append(
+            BarberSchedule(
+                barber_id=barber_userA.id,
+                date_of_week=day,
+                start_time=time(8, 0),
+                end_time=time(18, 0),
+            )
+        )
+
+    # Barber B
+    for day in range(7):
+        schedules.append(
+            BarberSchedule(
+                barber_id=barber_userB.id,
+                date_of_week=day,
+                start_time=time(13, 0),
+                end_time=time(21, 0),
+            )
+        )
+
+    async with session_factory() as db:
+        db.add_all(schedules)
+        await db.commit()
+        for s in schedules:
+            await db.refresh(s)
+
+    return schedules

@@ -24,7 +24,6 @@ async def reset_database():
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database cleared")
 
-
 async def seed_data():
     logger.info(f"Seeding Database: {config.DATABASE_URL}")
 

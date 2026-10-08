@@ -1,5 +1,9 @@
 import pytest
-from tests.test_booking import sample_service
+from app.core.database import Service
+from app.schemas.services import ServiceFilterParamForPrivate, ServiceOutForPublic
+from app.services import services_service
+from decimal import Decimal
+
 
 pytestmark = pytest.mark.anyio
 

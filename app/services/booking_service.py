@@ -1,6 +1,7 @@
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 import math
 
+from redis_fastapi import CacheBackend
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -57,7 +58,6 @@ async def get_filtered_bookings_for_user(
 
     return items, total, pages
 
-
 async def get_booking_by_id(
     booking_id: int,
     db: AsyncSession,
@@ -78,30 +78,32 @@ async def get_booking_by_id(
 
 async def create_booking(
     current_user: User,
-    body: dict,
+    barber_id: int,
+    booking_date: date,
+    start_time: time,
+    service_ids: list[int],
     db: AsyncSession,
 ) -> Booking:
     service_result = await db.scalars(
-        select(Service).where(Service.id.in_(body["service_ids"]))
+        select(Service).where(Service.id.in_(service_ids))
     )
 
     services = service_result.all()
-    if len(services) != len(body["service_ids"]):
+    if len(services) != len(service_ids):
         raise RequestedServiceForBookingNotFound("One of the services does not exist")
 
     total_price = sum(s.price for s in services)
     total_duration = sum(s.duration_minutes for s in services)
 
-    start_dt = datetime.combine(body["booking_date"], body["start_time"])
+    start_dt = datetime.combine(booking_date, start_time)
     end_dt = start_dt + timedelta(minutes=total_duration)
     end_time = end_dt.time()
 
-    # create a copy that excludes "service_ids"
-    body_excluded = {k: v for k, v in body.items() if k not in {"service_ids"}}
-
     booking = Booking(
         customer_id=current_user.id,
-        **body_excluded,
+        barber_id=barber_id,
+        booking_date=booking_date,
+        start_time=start_time,
         end_time=end_time,
         total_price=total_price,
         status=BookingStatus.pending,

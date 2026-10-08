@@ -41,22 +41,22 @@ async def test_admin_requires_authentication(client, new_user_data, method, path
 @pytest.mark.parametrize("method", ["GET", "POST", "PATCH"])
 async def test_admin_rejects_non_admin(
     create_auth_client_for_user,
-    customer_user,
-    barber_user,
+    customer_userA,
+    barber_userA,
     new_user_data,
     session_factory,
     role,
     method,
 ):
-    user = customer_user if role == "customer" else barber_user
+    user = customer_userA if role == "customer" else barber_userA
     client = await create_auth_client_for_user(user)
-    path = f"/admin/users/{customer_user.id}" if method == "PATCH" else "/admin/users"
+    path = f"/admin/users/{customer_userA.id}" if method == "PATCH" else "/admin/users"
     response = await client.request(method, path, json=new_user_data)
     assert response.status_code == 403
     async with session_factory() as db:
         assert await db.scalar(select(func.count()).select_from(User)) == 2
-        unchanged = await db.get(User, customer_user.id)
-        assert unchanged.email == customer_user.email
+        unchanged = await db.get(User, customer_userA.id)
+        assert unchanged.email == customer_userA.email
 
 
 @pytest.mark.parametrize("method", ["GET", "POST", "PATCH"])
@@ -74,15 +74,15 @@ async def test_admin_rejects_inactive_admin(
 
 
 
-async def test_list_users(admin_client, admin_user, customer_user, barber_user):
+async def test_list_users(admin_client, admin_user, customer_userA, barber_userA):
     response = await admin_client.get("/admin/users")
     assert response.status_code == 200
     body = response.json()
     assert (body["total"], body["page"], body["size"], body["pages"]) == (3, 1, 10, 1)
     assert {u["id"] for u in body["items"]} == {
         admin_user.id,
-        customer_user.id,
-        barber_user.id,
+        customer_userA.id,
+        barber_userA.id,
     }
     for user in body["items"]:
         assert_public_user(user)
@@ -92,23 +92,23 @@ async def test_list_users(admin_client, admin_user, customer_user, barber_user):
     "filters",
     [
         {"full_name": "CUSTOMER"},
-        {"email": "customer@"},
+        {"email": "customer"},
         {"phone": "34678"},
         {"role": "customer"},
-        {"role": "customer", "email": "customer@", "full_name": "customer"},
+        {"role": "customer", "email": "customer", "full_name": "customer"},
     ],
 )
-async def test_list_users_filters(admin_client, customer_user, barber_user, filters):
+async def test_list_users_filters(admin_client, customer_userA, barber_userA, filters):
     response = await admin_client.get("/admin/users", params=filters)
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
-    assert [u["id"] for u in body["items"]] == [customer_user.id]
+    assert [u["id"] for u in body["items"]] == [customer_userA.id]
 
 
-async def test_list_users_no_match(admin_client, customer_user):
+async def test_list_users_no_match(admin_client, customer_userA):
     response = await admin_client.get(
-        "/admin/users", params={"role": "admin", "email": customer_user.email}
+        "/admin/users", params={"role": "admin", "email": customer_userA.email}
     )
     assert response.status_code == 200
     assert response.json() == {
@@ -120,7 +120,7 @@ async def test_list_users_no_match(admin_client, customer_user):
     }
 
 
-async def test_list_users_pagination(admin_client, customer_user, barber_user):
+async def test_list_users_pagination(admin_client, customer_userA, barber_userA):
     seen = set()
     for page in (1, 2, 3, 4):
         response = await admin_client.get(
@@ -201,28 +201,28 @@ async def test_create_user_missing_field(admin_client, new_user_data, field):
 
 @pytest.mark.parametrize("field", ["email", "phone"])
 async def test_create_user_duplicate(
-    admin_client, customer_user, new_user_data, session_factory, field
+    admin_client, customer_userA, new_user_data, session_factory, field
 ):
-    payload = {**new_user_data, field: getattr(customer_user, field)}
+    payload = {**new_user_data, field: getattr(customer_userA, field)}
     response = await admin_client.post("/admin/users", json=payload)
     assert response.status_code == 409
     async with session_factory() as db:
         assert await db.scalar(select(func.count()).select_from(User)) == 2
 
 
-async def test_update_user(admin_client, customer_user, new_user_data, session_factory):
+async def test_update_user(admin_client, customer_userA, new_user_data, session_factory):
     payload = {**new_user_data, "role": "barber"}
     response = await admin_client.patch(
-        f"/admin/users/{customer_user.id}", json=payload
+        f"/admin/users/{customer_userA.id}", json=payload
     )
     assert response.status_code == 200
     body = response.json()
     assert_public_user(body)
-    assert body["id"] == customer_user.id
+    assert body["id"] == customer_userA.id
     for field in ("full_name", "email", "phone", "role"):
         assert body[field] == payload[field]
     async with session_factory() as db:
-        user = await db.get(User, customer_user.id)
+        user = await db.get(User, customer_userA.id)
         assert user.verify_password(payload["password"])
         assert user.email == payload["email"]
         assert user.phone == payload["phone"]
@@ -230,27 +230,27 @@ async def test_update_user(admin_client, customer_user, new_user_data, session_f
 
 
 async def test_update_user_partial(
-    admin_client, customer_user, customer_data, session_factory
+    admin_client, customer_userA, customer_dataA, session_factory
 ):
     response = await admin_client.patch(
-        f"/admin/users/{customer_user.id}", json={"full_name": "Updated Name"}
+        f"/admin/users/{customer_userA.id}", json={"full_name": "Updated Name"}
     )
     assert response.status_code == 200
     async with session_factory() as db:
-        user = await db.get(User, customer_user.id)
+        user = await db.get(User, customer_userA.id)
         assert user.full_name == "Updated Name"
-        assert user.email == customer_user.email
-        assert user.phone == customer_user.phone
-        assert user.role == customer_user.role
-        assert user.verify_password(customer_data["password"])
+        assert user.email == customer_userA.email
+        assert user.phone == customer_userA.phone
+        assert user.role == customer_userA.role
+        assert user.verify_password(customer_dataA["password"])
 
 
-async def test_update_user_same_identifiers(admin_client, customer_user, customer_data):
+async def test_update_user_same_identifiers(admin_client, customer_userA, customer_dataA):
     response = await admin_client.patch(
-        f"/admin/users/{customer_user.id}", json={**customer_data, "role": "customer"}
+        f"/admin/users/{customer_userA.id}", json={**customer_dataA, "role": "customer"}
     )
     assert response.status_code == 200
-    assert response.json()["id"] == customer_user.id
+    assert response.json()["id"] == customer_userA.id
 
 
 async def test_update_user_not_found(admin_client, new_user_data):
@@ -260,17 +260,17 @@ async def test_update_user_not_found(admin_client, new_user_data):
 
 @pytest.mark.parametrize("field", ["email", "phone"])
 async def test_update_user_duplicate(
-    admin_client, customer_user, barber_user, customer_data, session_factory, field
+    admin_client, customer_userA, barber_userA, customer_dataA, session_factory, field
 ):
-    payload = {**customer_data, "role": "customer", field: getattr(barber_user, field)}
+    payload = {**customer_dataA, "role": "customer", field: getattr(barber_userA, field)}
     response = await admin_client.patch(
-        f"/admin/users/{customer_user.id}", json=payload
+        f"/admin/users/{customer_userA.id}", json=payload
     )
     assert response.status_code == 409
     async with session_factory() as db:
-        user = await db.get(User, customer_user.id)
-        assert user.email == customer_user.email
-        assert user.phone == customer_user.phone
+        user = await db.get(User, customer_userA.id)
+        assert user.email == customer_userA.email
+        assert user.phone == customer_userA.phone
 
 
 @pytest.mark.parametrize(
@@ -283,15 +283,15 @@ async def test_update_user_duplicate(
     ],
 )
 async def test_update_user_invalid_data(
-    admin_client, customer_user, customer_data, session_factory, field, value
+    admin_client, customer_userA, customer_dataA, session_factory, field, value
 ):
-    payload = {**customer_data, "role": "customer", field: value}
+    payload = {**customer_dataA, "role": "customer", field: value}
     response = await admin_client.patch(
-        f"/admin/users/{customer_user.id}", json=payload
+        f"/admin/users/{customer_userA.id}", json=payload
     )
     assert response.status_code == 400
     assert response.json()["error_code"] == "VALIDATION_ERROR"
     async with session_factory() as db:
-        user = await db.get(User, customer_user.id)
-        assert user.email == customer_user.email
-        assert user.verify_password(customer_data["password"])
+        user = await db.get(User, customer_userA.id)
+        assert user.email == customer_userA.email
+        assert user.verify_password(customer_dataA["password"])
