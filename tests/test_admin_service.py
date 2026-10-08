@@ -36,7 +36,7 @@ async def test_get_service_by_id_not_found(
 
     assert response.status_code == 404
     assert response.json() == {
-        "error_code": "NOT_FOUND",
+        "error_code": "SERVICE_NOT_FOUND_EXCEPTION",
         "message": "Not Found Service",
     }
 
