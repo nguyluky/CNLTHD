@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.core.exception import NotFoundException
-from app.services import barber_service
+from app.services.barber_service import *
 router = APIRouter(prefix="/barbers", tags=["Barber"])
 
 @router.get(
@@ -22,13 +22,13 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
 )
 async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
-    db: AsyncSession = Depends(get_db)
+    barber_service: BarberServiceDep
     ):
     """
     Get all barbers.
     """
     try:
-        items, total, pages = await barber_service.get_filtered_barbers(filter=filter, db=db)
+        items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -53,13 +53,13 @@ async def get_barbers(
 )
 async def get_barber(
     barber_id: int,
-    db: AsyncSession = Depends(get_db)
+    barber_service: BarberServiceDep
 ):
     """
     Get a barber by ID.
     """
     try:
-        barber = await barber_service.get_barber_by_id(barber_id, db=db)
+        barber = await barber_service.get_barber_by_id(barber_id)
     except NotFoundException as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
@@ -73,10 +73,10 @@ async def get_barber(
 )
 async def get_available_slots(
     barber_id: int,
+    barber_service: BarberServiceDep,
     redis: CacheBackendDep,
     booking_date: date = Query(..., description="Specified date"),
     slot_duration: int = Query(30, description="specified slot duration in minutes"),
-    db: AsyncSession = Depends(get_db),
 ):
     available_slots = []
     
@@ -88,7 +88,6 @@ async def get_available_slots(
     available_slots = await barber_service.get_available_slot_minutes(
         barber_id=barber_id, 
         target_date=booking_date,
-        db=db,
         slot_duration=slot_duration
     )
 
@@ -100,3 +99,9 @@ async def get_available_slots(
         "slot_duration_minutes": slot_duration,
         "available_slots": available_slots
     }
+
+map_exception = {
+    BarberNotFoundException: lambda e: HTTPException(
+        status_code=404, detail=e or "Service not found"
+    ),
+}
