@@ -12,7 +12,7 @@ from collections import deque
 
 from app.core.logger import logger
 from app.main import create_error_response
-from app.services.share import NotFoundException, ServiceException, camel_to_upper_snake_case
+from app.services.share import NotFoundException, ServiceException, UserNotFoundException, camel_to_upper_snake_case
 
 # get all files in the current directory
 _files = os.listdir(os.path.dirname(__file__))
@@ -21,6 +21,8 @@ _routers: list[APIRouter] = []
 # map exception to function that return http response
 map_exception: dict[type[Exception], Callable] = {
     NotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "Resource not found"),
+    UserNotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "User not found"),
+    
 }
 
 for file in _files:
@@ -72,7 +74,7 @@ router = APIRouter()
 for r in _routers:
     router.include_router(r)
 
-def api_exception_handler(rep, exception: Exception):
+def exception_handler(rep, exception: Exception):
     exception_type = type(exception)
     if exception_type in map_exception:
         http_exception = map_exception[exception_type](str(exception))
@@ -88,5 +90,5 @@ def api_exception_handler(rep, exception: Exception):
 
 __all__ = [
     "router",
-    "api_exception_handler",
+    "exception_handler",
 ]

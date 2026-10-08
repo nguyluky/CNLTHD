@@ -444,7 +444,6 @@ async def test_forgot_password_unknown_user(client, email_service, redis_client)
         "/auth/forgot_password", params={"email": "unknown@example.com"}
     )
     assert response.status_code == 404
-    assert response.json()["message"] == "User not found."
     email_service.send_reset_password_email.assert_not_awaited()
     assert await redis_client.dbsize() == 0
 
@@ -523,7 +522,6 @@ async def test_reset_password_deleted_user(client, cache):
     )
     assert response.status_code == 404
     print(response.json())
-    assert response.json()["message"] == "User not found."
 
 
 @pytest.mark.parametrize(

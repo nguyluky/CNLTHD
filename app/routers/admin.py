@@ -82,7 +82,7 @@ async def update_user(
     return user
 
 
-_MAP_EXCEPTION_TO_HTTP_STATUS = {
+map_exception = {
     UserAlreadyExistsException: lambda e: HTTPException(
         status_code=409, detail=e or "User with this email or phone already exists"
     ),
@@ -94,8 +94,8 @@ def handle_domain_exception(req: Request, exc: Exception) -> JSONResponse:
     # assert isinstance(exc, _AdminException), "Exception must be an instance of AdminException"
 
     exception_type = type(exc)
-    if exception_type in _MAP_EXCEPTION_TO_HTTP_STATUS:
-        http_exception = _MAP_EXCEPTION_TO_HTTP_STATUS[exception_type](str(exc))
+    if exception_type in map_exception:
+        http_exception = map_exception[exception_type](str(exc))
         status_code = camel_to_upper_snake_case(exception_type.__name__)
         return create_error_response(
             status_code=http_exception.status_code,
