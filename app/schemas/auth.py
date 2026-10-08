@@ -103,13 +103,7 @@ class OAuth2Logout(OAuth2Refresh):
 
 
 class Device(BaseModel):
-    device_id: str
-    device_name: str | None
-    device_type: str | None
-    os: str | None
-    browser: str | None
-    ip_address: str | None
-    user_agent: str | None
+    id: int
     created_at: datetime
     last_activity_at: datetime
     expired_at: datetime

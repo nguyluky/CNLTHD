@@ -25,7 +25,7 @@ from app.schemas.auth import (
     RegisterOut,
 )
 from app.core.security import decode_token, hash_sha256
-from app.dependencies import DeviceInfoDep, EmailServiceDep, get_current_active_user
+from app.dependencies import EmailServiceDep, get_current_active_user
 from app.core.logger import logger
 from app.schemas.common import create_error_response
 from app.services.auth_service import *
@@ -101,7 +101,6 @@ async def confirm_registration(token: str, auth_service: AuthServiceDep):
 )
 async def login(
     data: Annotated[OAuth2Password, Depends()],
-    device_info: DeviceInfoDep,
     auth_service: AuthServiceDep,
 ):
     """
@@ -114,7 +113,7 @@ async def login(
     user = await auth_service.login(email=data.username, password=data.password)
 
     refresh_token, session_token = await auth_service.generate_new_refresh_token(
-        user=user, device_info=device_info.model_dump()
+        user=user
     )
 
     access_token = auth_service.generate_access_token_from_session(
@@ -252,7 +251,6 @@ async def get_active_devices(
 async def forgot_password(
     email: str,
     auth_service: AuthServiceDep,
-    redis: CacheBackendDep,
     background_tasks: BackgroundTasks,
     email_service: EmailServiceDep,
 ):
@@ -262,12 +260,7 @@ async def forgot_password(
     """
 
     user = await auth_service.get_user_by_email(email=email)
-    token = str(uuid.uuid4())
-    redis_key = f"forgot_password:{token}"
-
-    await redis.set(
-        redis_key, {"user_id": user.id}, ttl=3600, eviction_group="forgot_password"
-    )
+    token = await auth_service.generate_password_reset_token(user=user)
 
     reset_link = f"{config.BASE_URL}/auth/reset_password/{token}"
     background_tasks.add_task(
@@ -289,7 +282,6 @@ async def forgot_password(
 async def reset_password(
     token: str,
     new_password: str,
-    redis: CacheBackendDep,
     auth_service: AuthServiceDep,
 ):
     """
@@ -298,16 +290,8 @@ async def reset_password(
     - **new_password**: New password for the user account
     """
 
-    redis_key = f"forgot_password:{token}"
-    data = await redis.get(redis_key, eviction_group="forgot_password")
-    await redis.delete(redis_key, eviction_group="forgot_password")
-
-    if not data:
-        raise HTTPException(status_code=404, detail="Token not found or expired")
-
-    user_id = data.get("user_id")
-    user = await auth_service.get_user_by_id(user_id=user_id)
-
+    user = await auth_service.get_user_by_password_reset_token(token=token)
+    await auth_service.delete_password_reset_token(token=token)
     await auth_service.update_user_password(user=user, new_password=new_password)
 
     return {
@@ -334,6 +318,9 @@ _MAP_EXCEPTION_TO_HTTP_STATUS = {
     ),
     TokenExpiredException: lambda text: HTTPException(
         status_code=401, detail=text or "Token has expired. Please login again."
+    ),
+    PasswordResetTokenNotFoundException: lambda text: HTTPException(
+        status_code=404, detail=text or "Token not found or expired."
     ),
 }
 

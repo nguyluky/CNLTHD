@@ -123,14 +123,14 @@ class SessionToken(Base):
         String(255), nullable=False, unique=True
     )
     # device info
-    device_id: Mapped[str] = mapped_column(String(255), nullable=True)
-    device_name: Mapped[str] = mapped_column(String(255), nullable=True)
-    device_type: Mapped[str] = mapped_column(String(255), nullable=True)
-    os: Mapped[str] = mapped_column(String(255), nullable=True)
-    browser: Mapped[str] = mapped_column(String(255), nullable=True)
+    # device_id: Mapped[str] = mapped_column(String(255), nullable=True)
+    # device_name: Mapped[str] = mapped_column(String(255), nullable=True)
+    # device_type: Mapped[str] = mapped_column(String(255), nullable=True)
+    # os: Mapped[str] = mapped_column(String(255), nullable=True)
+    # browser: Mapped[str] = mapped_column(String(255), nullable=True)
 
-    ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
-    user_agent: Mapped[str] = mapped_column(String(255), nullable=True)
+    # ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
+    # user_agent: Mapped[str] = mapped_column(String(255), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=func.now()

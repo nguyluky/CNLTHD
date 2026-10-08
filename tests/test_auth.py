@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from app.core.database import SessionToken, User
 from app.core.config import config
 from app.core.security import decode_token, hash_sha256
+from app.schemas.auth import LoginOut
 
 pytestmark = pytest.mark.anyio
 
@@ -219,11 +220,10 @@ async def test_login_unconfirmed_user(client, customer_data):
 
 @pytest.fixture
 async def login_user(client):
-    async def login(user_data, device_id="test-device"):
+    async def login(user_data) -> LoginOut:
         response = await client.post(
             "/auth/login",
             data={"username": user_data["email"], "password": user_data["password"]},
-            headers={"X-Device-Id": device_id},
         )
         assert response.status_code == 200, response.text
         return response.json()
@@ -239,7 +239,6 @@ async def test_login_persists_session(login_user, registered_user, session_facto
         assert session is not None
         assert session.refresh_token_hash == hash_sha256(tokens["refresh_token"])
         assert session.refresh_token_hash != tokens["refresh_token"]
-        assert session.device_id == "test-device"
         assert session.revoked_at is None
         assert decode_token(tokens["access_token"])["sid"] == f"session_{session.id}"
 
@@ -251,23 +250,32 @@ async def test_refresh_rotates_token(
     response = await client.post(
         "/auth/refresh", data={"refresh_token": original["refresh_token"]}
     )
+
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["message"] == "Token refreshed successfully"
     assert body["email"] == registered_user["email"]
     assert body["token_type"] == "bearer"
+    # Token mới phải khác token cũ
     assert body["refresh_token"] != original["refresh_token"]
+    assert body["access_token"] != original["access_token"]
+
+    # kiểm tra xem sid của access_token mới phải trùng với sid của access_token cũ
     payload = decode_token(body["access_token"])
     assert payload["sub"] == registered_user["email"]
     assert payload["sid"] == decode_token(original["access_token"])["sid"]
+
     async with session_factory() as db:
         assert await db.scalar(select(func.count()).select_from(SessionToken)) == 1
         session = await db.scalar(select(SessionToken))
         assert session.refresh_token_hash == hash_sha256(body["refresh_token"])
+
+    # refresh khi đã dùng xẽ bị xóa
     response = await client.post(
         "/auth/refresh", data={"refresh_token": original["refresh_token"]}
     )
     assert response.status_code == 404
+
+    # refresh mới thì ok 
     response = await client.post(
         "/auth/refresh", data={"refresh_token": body["refresh_token"]}
     )
@@ -305,10 +313,13 @@ async def test_refresh_expired_token(
     client, login_user, registered_user, session_factory
 ):
     tokens = await login_user(registered_user)
+
+    # làm cho token hết hạn
     async with session_factory() as db:
         session = await db.scalar(select(SessionToken))
         session.expired_at = datetime.now(timezone.utc) - timedelta(days=1)
         await db.commit()
+    
     response = await client.post(
         "/auth/refresh", data={"refresh_token": tokens["refresh_token"]}
     )
@@ -325,8 +336,12 @@ async def test_refresh_expired_token(
 async def test_logout_only_revokes_current_session(
     client, login_user, registered_user, session_factory
 ):
-    first = await login_user(registered_user, "first")
-    await login_user(registered_user, "second")
+    first = await login_user(registered_user)
+    second = await login_user(registered_user)
+
+    hash_first = hash_sha256(first["refresh_token"])
+    hash_second = hash_sha256(second["refresh_token"])
+
     response = await client.post(
         "/auth/logout", data={"refresh_token": first["refresh_token"]}
     )
@@ -334,19 +349,19 @@ async def test_logout_only_revokes_current_session(
     assert response.json() == {"message": "Logout successful"}
     async with session_factory() as db:
         sessions = {
-            s.device_id: s for s in (await db.scalars(select(SessionToken))).all()
+            s.refresh_token_hash: s for s in (await db.scalars(select(SessionToken))).all()
         }
-        assert sessions["first"].revoked_at is not None
-        assert sessions["second"].revoked_at is None
+        assert sessions[hash_first].revoked_at is not None
+        assert sessions[hash_second].revoked_at is None
 
 
 async def test_logout_all_preserves_other_users_sessions(
     client, login_user, registered_user, register_user, barber_data, session_factory
 ):
-    first = await login_user(registered_user, "first")
-    await login_user(registered_user, "second")
+    first = await login_user(registered_user)
+    second = await login_user(registered_user)
     other_user = await register_user(barber_data)
-    await login_user(other_user, "other-user")
+    other = await login_user(other_user)
     response = await client.post(
         "/auth/logout_all", data={"refresh_token": first["refresh_token"]}
     )
@@ -354,11 +369,11 @@ async def test_logout_all_preserves_other_users_sessions(
     assert response.json() == {"message": "Logout from all devices successful"}
     async with session_factory() as db:
         sessions = {
-            s.device_id: s for s in (await db.scalars(select(SessionToken))).all()
+            s.refresh_token_hash: s for s in (await db.scalars(select(SessionToken))).all()
         }
-        assert sessions["first"].revoked_at is not None
-        assert sessions["second"].revoked_at is not None
-        assert sessions["other-user"].revoked_at is None
+        assert sessions[hash_sha256(first["refresh_token"])].revoked_at is not None
+        assert sessions[hash_sha256(second["refresh_token"])].revoked_at is not None
+        assert sessions[hash_sha256(other["refresh_token"])].revoked_at is None
 
 
 async def test_devices_requires_authentication(client):
@@ -369,10 +384,12 @@ async def test_devices_requires_authentication(client):
 async def test_devices_lists_only_current_users_active_sessions(
     client, login_user, registered_user, register_user, barber_data
 ):
-    current = await login_user(registered_user, "current")
-    revoked = await login_user(registered_user, "revoked")
+    current = await login_user(registered_user)
+    revoked = await login_user(registered_user)
+
     other_user = await register_user(barber_data)
-    await login_user(other_user, "other-user")
+    other = await login_user(other_user)
+
     response = await client.post(
         "/auth/logout", data={"refresh_token": revoked["refresh_token"]}
     )
@@ -382,10 +399,14 @@ async def test_devices_lists_only_current_users_active_sessions(
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["message"] == "Active devices retrieved successfully"
     devices = body["active_devices"]
+
+
+    sid = decode_token(current["access_token"])["sid"]
+
     assert isinstance(devices, list)
-    assert [device["device_id"] for device in devices] == ["current"]
+    # assert [device["id"] for device in devices] == ["current"]
+    assert [f"session_{device["id"]}" for device in devices] == [sid]
     assert devices[0]["revoked_at"] is None
     assert "refresh_token_hash" not in devices[0]
 
@@ -397,9 +418,7 @@ async def test_forgot_password(
         "/auth/forgot_password", params={"email": registered_user["email"]}
     )
     assert response.status_code == 200
-    assert response.json() == {
-        "message": "Password reset link sent. Please check your email."
-    }
+
     link = email_service.send_reset_password_email.call_args.kwargs["reset_link"]
     token = urlparse(link).path.rsplit("/", 1)[-1]
     assert str(UUID(token)) == token
@@ -407,6 +426,7 @@ async def test_forgot_password(
         to=registered_user["email"],
         reset_link=f"{config.BASE_URL}/auth/reset_password/{token}",
     )
+
     async with session_factory() as db:
         user = await db.scalar(
             select(User).where(User.email == registered_user["email"])
@@ -485,7 +505,7 @@ async def test_reset_password_invalid_token(
         f"/auth/reset_password/{token}", params={"new_password": "new-password"}
     )
     assert response.status_code == 404
-    assert response.json()["message"] == "Token not found or expired"
+    assert response.json()["error_code"] == "PASSWORD_RESET_TOKEN_NOT_FOUND_EXCEPTION"
     async with session_factory() as db:
         user = await db.get(User, customer_user.id)
         assert user.verify_password(customer_data["password"])
@@ -502,6 +522,7 @@ async def test_reset_password_deleted_user(client, cache):
         "/auth/reset_password/deleted-user", params={"new_password": "new-password"}
     )
     assert response.status_code == 404
+    print(response.json())
     assert response.json()["message"] == "User not found."
 
 

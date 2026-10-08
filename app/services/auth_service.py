@@ -27,7 +27,6 @@ class TokenNotFoundException(AuthException):
 
     pass
 
-
 class InvalidCredentialsException(AuthException):
     """Khi đăng nhập, nếu email hoặc password không đúng thì raise exception này."""
 
@@ -49,6 +48,11 @@ class UserNotFoundException(AuthException):
 
 class TokenExpiredException(AuthException):
     """Khi xác nhận token, nếu token đã hết hạn thì raise exception này."""
+
+    pass
+
+class PasswordResetTokenNotFoundException(AuthException):
+    """Khi reset password, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
 
     pass
 
@@ -114,7 +118,15 @@ class AuthService:
 
         return user
 
-    async def generate_new_refresh_token(self, *, user: User, device_info: dict):
+    async def generate_new_refresh_token(self, *, user: User):
+        """
+            Generate a new refresh token for the user.
+
+            return refresh_token, session
+            refresh_token: str
+            session: SessionToken
+        """
+        
         refresh_token_expires_delta = timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
 
         refresh_token = str(uuid.uuid4())
@@ -126,13 +138,6 @@ class AuthService:
 
         session.user_id = user.id
         session.refresh_token_hash = refresh_token_hash
-        session.device_id = device_info["device_id"]
-        session.device_name = device_info["device_name"]
-        session.device_type = device_info["device_type"]
-        session.os = device_info["os"]
-        session.browser = device_info["browser"]
-        session.ip_address = device_info["ip_address"]
-        session.user_agent = device_info["user_agent"]
 
         session.expired_at = (
             datetime.now(timezone.utc) + refresh_token_expires_delta
@@ -246,7 +251,36 @@ class AuthService:
         if not user:
             raise UserNotFoundException()
         return user
+    
+    async def generate_password_reset_token(self, *, user: User):
+        reset_token = str(uuid.uuid4())
+        redis_key = f"forgot_password:{reset_token}"
 
+        await self.redis.set(
+            redis_key,
+            {"user_id": user.id},
+            ttl=3600,
+            eviction_group="forgot_password",
+        )
+
+        return reset_token
+    
+    async def get_user_by_password_reset_token(self, *, token: str):
+        redis_key = f"forgot_password:{token}"
+        data = await self.redis.get(redis_key, eviction_group="forgot_password")
+
+        if not data:
+            raise PasswordResetTokenNotFoundException("Token not found or expired.")
+
+        user_id = data["user_id"]
+        user = await self.get_user_by_id(user_id=user_id)
+
+        return user
+    
+    async def delete_password_reset_token(self, *, token: str):
+        redis_key = f"forgot_password:{token}"
+        await self.redis.delete(redis_key, eviction_group="forgot_password")
+    
 
 def get_auth_service(
     redis: CacheBackendDep,

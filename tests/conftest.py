@@ -117,7 +117,7 @@ async def register_user(session_factory):
         Helper fixture to register a user
     """
 
-    async def register(data):
+    async def register(data: dict):
         # 
         async with session_factory() as db:
 
@@ -125,7 +125,7 @@ async def register_user(session_factory):
                 full_name=data["full_name"],
                 email=data["email"],
                 phone=data["phone"],
-                role=data["role"] or UserRole.customer,
+                role=data.get("role", UserRole.customer)
             )
             user.hash_password(data["password"])
             db.add(user)
