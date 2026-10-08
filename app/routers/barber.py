@@ -66,14 +66,15 @@ async def get_barber(
 
 @router.get(
     "/{barber_id}/available-slots",
+    description="Returns the specified barber free time slots in the specified date, the client can further specify the duration of each time slot",
     response_model=AvailableSlotOut,
     status_code=200,
 )
 async def get_available_slots(
     barber_id: int,
     redis: CacheBackendDep,
-    booking_date: date = Query(..., description="Ngày tra cứu (YYYY-MM-DD)"),
-    slot_duration: int = Query(30, description="Độ dài khung giờ (phút)"),
+    booking_date: date = Query(..., description="Specified date"),
+    slot_duration: int = Query(30, description="specified slot duration in minutes"),
     db: AsyncSession = Depends(get_db),
 ):
     available_slots = await barber_service.get_available_slot_minutes(
