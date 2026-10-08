@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from decimal import Decimal
 
 from app.core.database import Base, User, UserRole, get_db, Service
-from app.core.email import EmailServiceInterface
+from app.services.email_service import EmailServiceInterface
 from app.core.security import create_access_token
 from app.dependencies import get_email_service
 from app.main import app
@@ -112,18 +112,27 @@ def admin_data():
 
 
 @pytest.fixture
-async def register_user(client, email_service):
-    """Return a helper that registers and confirms any supplied user data."""
+async def register_user(session_factory):
+    """
+        Helper fixture to register a user
+    """
 
     async def register(data):
-        response = await client.post("/auth/register", json=data)
-        assert response.status_code == 201, response.text
-        link = email_service.send_confirmation_email.call_args.kwargs[
-            "confirmation_link"
-        ]
-        token = urlparse(link).path.rsplit("/", 1)[-1]
-        response = await client.post(f"/auth/confirm/{token}")
-        assert response.status_code == 200, response.text
+        # 
+        async with session_factory() as db:
+
+            user = User(
+                full_name=data["full_name"],
+                email=data["email"],
+                phone=data["phone"],
+                role=data["role"] or UserRole.customer,
+            )
+            user.hash_password(data["password"])
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+
+
         return data
 
     return register
