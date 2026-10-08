@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
+# TODO: move to share.py
+
 class ApiException(Exception):
     """Base class for API exceptions."""
 

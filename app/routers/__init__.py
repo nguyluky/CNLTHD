@@ -1,5 +1,6 @@
 """
-tự load router, tự cảnh báo lỗi khi chưa handle exception kết thừa tư ApiException
+tự load router, 
+tự cảnh báo lỗi khi chưa handle exception kết thừa tư ApiException
 """
 
 
@@ -23,7 +24,7 @@ map_exception: dict[type[Exception], Callable] = {
 }
 
 for file in _files:
-    if file.endswith(".py") and file != "__init__.py":
+    if file.endswith(".py") and file != "__init__.py" and not file.startswith("_"):
         module_name = f"app.routers.{file[:-3]}"
         module = importlib.import_module(module_name)
         if hasattr(module, "router"):
@@ -54,11 +55,18 @@ def _get_all_subclasses(cls):
 _all_exceptions = list(_get_all_subclasses(ServiceException))
 _existing_exceptions = [exc for exc in _all_exceptions if any(exc.__name__ == existing_exc.__name__ for existing_exc in map_exception)]
 
+# kiểm tra xem có tên exception nào trùng nhau không
+exception_names = [exc.__name__ for exc in _all_exceptions]
+duplicate_exceptions = set(name for name in exception_names if exception_names.count(name) > 1)
+if duplicate_exceptions:
+    logger.warning(f"The error classes have duplicate names: {', '.join(duplicate_exceptions)}. please move to share.py or rename them to avoid confusion.")
+
+
 # kiểm tra xem có exception nào chưa được handle không
 _unhandled_exceptions = [exc for exc in _all_exceptions if exc not in _existing_exceptions]
 if _unhandled_exceptions:
     unhandled_exception_names = [exc.__name__ for exc in _unhandled_exceptions]
-    logger.warning(f"The following ServiceException subclasses are not handled in any router: {', '.join(unhandled_exception_names)}")
+    logger.warning(f"The following error classes are not handled in any router: {', '.join(unhandled_exception_names)}")
 
 router = APIRouter()
 for r in _routers:

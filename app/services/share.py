@@ -21,6 +21,9 @@ class NotFoundException(ServiceException):
     """Exception raised when a requested resource is not found."""
     pass
 
+class UserNotFoundException(ServiceException):
+    pass
+
 def create_handle_api_exception(map: dict[type[Exception], Callable]):
     """
     map: dict[type[Exception], Callable] - mapping từ exception type sang callable function return http response

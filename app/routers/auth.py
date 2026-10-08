@@ -313,9 +313,6 @@ map_exception = {
         status_code=404,
         detail=text or "Refresh token not found or expired. Please login again.",
     ),
-    UserNotFoundException: lambda text: HTTPException(
-        status_code=404, detail=text or "User not found."
-    ),
     TokenExpiredException: lambda text: HTTPException(
         status_code=401, detail=text or "Token has expired. Please login again."
     ),

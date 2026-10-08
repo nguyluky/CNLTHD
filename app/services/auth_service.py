@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import config
 from app.core.database import SessionToken, User, get_db
 from app.core.security import hash_sha256
-from app.services.share import ServiceException
+from app.services.share import ServiceException, UserNotFoundException
 
 class _AuthException(ServiceException):
     """Base class for authentication-related exceptions."""
@@ -37,12 +37,6 @@ class InvalidCredentialsException(_AuthException):
 
 class RefreshTokenNotFoundException(_AuthException):
     """Khi refresh token, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
-
-    pass
-
-
-class UserNotFoundException(_AuthException):
-    """Khi tìm user theo email, nếu user không tồn tại thì raise exception này."""
 
     pass
 

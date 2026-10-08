@@ -86,15 +86,12 @@ _MAP_EXCEPTION_TO_HTTP_STATUS = {
     UserAlreadyExistsException: lambda e: HTTPException(
         status_code=409, detail=e or "User with this email or phone already exists"
     ),
-    UserNotFoundException: lambda e: HTTPException(
-        status_code=404, detail=e or "User not found"
-    ),
 }
 
 
 def handle_domain_exception(req: Request, exc: Exception) -> JSONResponse:
 
-    assert isinstance(exc, AdminException), "Exception must be an instance of AdminException"
+    # assert isinstance(exc, _AdminException), "Exception must be an instance of AdminException"
 
     exception_type = type(exc)
     if exception_type in _MAP_EXCEPTION_TO_HTTP_STATUS:

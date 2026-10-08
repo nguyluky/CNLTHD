@@ -5,17 +5,14 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import User, UserRole, get_db
+from app.services.share import ServiceException, UserNotFoundException
 
 
-class AdminException(Exception):
+class _AdminException(ServiceException):
     pass
 
 
-class UserAlreadyExistsException(AdminException):
-    pass
-
-
-class UserNotFoundException(AdminException):
+class UserAlreadyExistsException(_AdminException):
     pass
 
 class AdminService:
