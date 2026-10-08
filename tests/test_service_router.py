@@ -2,7 +2,6 @@ import pytest
 from app.core.database import Service
 from app.schemas.services import ServiceFilterParamForPrivate, ServiceOutForPublic
 from app.services import services_service
-from tests.test_booking import sample_service
 from decimal import Decimal
 
 

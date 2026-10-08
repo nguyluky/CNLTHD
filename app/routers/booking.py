@@ -1,5 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from redis_fastapi import CacheBackendDep
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import (
     BookingStatus,
@@ -18,7 +19,7 @@ from app.schemas.booking import (
 )
 from app.schemas.common import PageResponse
 from app.services import booking_service
-
+from app.services.barber_service import invalidate_available_slots_cache
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -97,6 +98,7 @@ async def get_bookings(
 )
 async def create_booking(
     body: BookingCreateIn,
+    redis: CacheBackendDep,
     current_user: User = Depends(require_roles(UserRole.customer)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -108,12 +110,17 @@ async def create_booking(
     - **service_ids**: List of choosen service ids
     """
 
-    create_data = body.model_dump()
-
     try:
         booking = await booking_service.create_booking(
-            current_user=current_user, body=create_data, db=db
+            current_user=current_user, 
+            barber_id=body.barber_id, 
+            booking_date=body.booking_date, 
+            start_time=body.start_time, 
+            service_ids=body.service_ids, 
+            db=db,
         )
+
+        await invalidate_available_slots_cache(redis=redis)
     except RequestedServiceForBookingNotFound as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
@@ -128,6 +135,7 @@ async def create_booking(
 async def update_booking_status(
     booking_id: int,
     body: BookingStatusIn,
+    redis: CacheBackendDep,
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -154,6 +162,7 @@ async def update_booking_status(
         )
 
     await booking_service.update_booking_status(booking, body.status, db)
+    await invalidate_available_slots_cache(redis=redis)
 
     return {"message": "Update Booking status successfully"}
 
@@ -165,6 +174,7 @@ async def update_booking_status(
 )
 async def cancel_booking(
     booking_id: int,
+    redis: CacheBackendDep,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -195,6 +205,7 @@ async def cancel_booking(
         )
 
     await booking_service.update_booking_status(booking, BookingStatus.cancelled, db)
+    await invalidate_available_slots_cache(redis=redis)
 
     return {"message": "Cancel Booking successfully"}
 
@@ -207,6 +218,7 @@ async def cancel_booking(
 async def update_booking_schedule(
     booking_id: int,
     body: BookingScheduleIn,
+    redis: CacheBackendDep,
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.customer)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -238,5 +250,6 @@ async def update_booking_schedule(
     await booking_service.update_booking_schedule(
         booking=booking, update_data=update_data, db=db
     )
+    await invalidate_available_slots_cache(redis=redis)
 
     return {"message": "Reschedule Booking successfully"}
