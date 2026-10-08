@@ -14,7 +14,8 @@ from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
 from app.internal import user, services as services_internal, booking, barber_schedule, admin
-from app.routers import test, auth, services as services_router, barber
+# from app.routers import test, auth, services as services_router, barber
+from app.routers import router
 
 
 @asynccontextmanager
@@ -58,21 +59,24 @@ app.add_middleware(
 
 app.include_router(user.router)
 app.include_router(booking.router)
-app.include_router(auth.router)
+# app.include_router(auth.router)
 app.include_router(admin.router)
-app.include_router(services_router.router)
+# app.include_router(services_router.router)
 app.include_router(services_internal.router)
-app.include_router(barber.router)
+# app.include_router(barber.router)
 app.include_router(barber_schedule.router)
+app.include_router(router)
 
-app.add_exception_handler(
-    auth.AuthException, 
-    auth.handle_domain_exception
-)
-app.add_exception_handler(
-    admin.AdminException,
-    admin.handle_domain_exception
-)
+# app.add_exception_handler(
+#     auth.AuthException, 
+#     auth.handle_domain_exception
+# )
+# app.add_exception_handler(
+#     admin.AdminException,
+#     admin.handle_domain_exception
+# )
+
+
 
 @app.get("/health")
 async def health():

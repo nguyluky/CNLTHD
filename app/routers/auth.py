@@ -299,7 +299,7 @@ async def reset_password(
     }
 
 
-_MAP_EXCEPTION_TO_HTTP_STATUS = {
+map_exception = {
     UserExistsException: lambda text: HTTPException(
         status_code=400, detail=text or "User with this email or phone already exists."
     ),
@@ -328,12 +328,10 @@ def handle_domain_exception(rep: Request, exception: Exception) -> JSONResponse:
     """
     Handle domain exceptions and map them to appropriate HTTP responses.
     """
-
-    assert isinstance(exception, AuthException)
     
     exception_type = type(exception)
-    if exception_type in _MAP_EXCEPTION_TO_HTTP_STATUS:
-        http_exception = _MAP_EXCEPTION_TO_HTTP_STATUS[exception_type](str(exception))
+    if exception_type in map_exception:
+        http_exception = map_exception[exception_type](str(exception))
         error_code = camel_to_upper_snake_case(exception_type.__name__)
         return create_error_response(
             status_code=http_exception.status_code,

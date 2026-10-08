@@ -1,10 +1,16 @@
+
+
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 
+class ApiException(Exception):
+    """Base class for API exceptions."""
 
+    def __init__(self, message: str | None = None):
+        self.message = message
 
-class NotFoundException(Exception):
+class NotFoundException(ApiException):
     pass
 
 
