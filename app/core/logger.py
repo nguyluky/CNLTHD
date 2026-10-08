@@ -34,12 +34,41 @@ if config.ENV == "production":
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 else:
+    class ColorFormatter(logging.Formatter):
+        COLORS = {
+            "DEBUG": "\033[36m",      # Cyan
+            "INFO": "\033[32m",       # Green
+            "WARNING": "\033[33m",    # Yellow
+            "ERROR": "\033[31m",      # Red
+            "CRITICAL": "\033[1;31m", # Bold Red
+        }
+
+        RESET = "\033[0m"
+
+        def format(self, record):
+            original_levelname = record.levelname
+
+            try:
+                color = self.COLORS.get(record.levelname, "")
+                record.levelname = (
+                    f"{color}{record.levelname}{self.RESET}"
+                )
+                return super().format(record)
+            finally:
+                record.levelname = original_levelname
+
+
     LOGGING_CONFIG = {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {
             "standard": {
-                "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                "()": ColorFormatter,
+                "format": (
+                    "%(asctime)s "
+                    "[%(levelname)s] "
+                    "%(name)s: %(message)s"
+                ),
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
         },
@@ -51,16 +80,16 @@ else:
             },
         },
         "loggers": {
-            "": {  # Root logger handles application code logs
+            "": {
                 "handlers": ["console"],
                 "level": "INFO",
             },
-            "uvicorn.error": {  # Server error logs
+            "uvicorn.error": {
                 "level": "INFO",
                 "handlers": ["console"],
                 "propagate": False,
             },
-            "uvicorn.access": {  # HTTP request traffic logs
+            "uvicorn.access": {
                 "level": "INFO",
                 "handlers": ["console"],
                 "propagate": False,
@@ -69,4 +98,5 @@ else:
     }
 
     logging.config.dictConfig(LOGGING_CONFIG)
+
     logger = logging.getLogger(config.APP_NAME)
