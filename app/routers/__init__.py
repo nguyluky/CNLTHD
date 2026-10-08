@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 from collections import deque
 
 from app.core.logger import logger
-from app.main import create_error_response
+from app.schemas.common import create_error_response
 from app.services.share import NotFoundException, ServiceException, UserNotFoundException, camel_to_upper_snake_case
 
 # get all files in the current directory
@@ -35,7 +35,12 @@ for file in _files:
             logger.warning(f"Module {module_name} does not have a 'router' attribute.")
 
         if hasattr(module, "map_exception"):
-            map_exception.update(module.map_exception)
+
+            # map_exception.update(module.map_exception)
+            for exc_type, handler in module.map_exception.items():
+                if exc_type in map_exception:
+                    logger.warning(f"Exception {exc_type.__name__} is already mapped. Overwriting with new handler from {module_name}.")
+                map_exception[exc_type] = handler
         else:
             logger.warning(f"Module {module_name} does not have a 'map_exception' attribute.")
 

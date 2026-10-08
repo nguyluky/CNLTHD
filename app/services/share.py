@@ -23,23 +23,3 @@ class NotFoundException(ServiceException):
 
 class UserNotFoundException(ServiceException):
     pass
-
-def create_handle_api_exception(map: dict[type[Exception], Callable]):
-    """
-    map: dict[type[Exception], Callable] - mapping từ exception type sang callable function return http response
-    """
-    def handle_api_exception(rep, exception: Exception):
-        exception_type = type(exception)
-        if exception_type in map:
-            http_exception = map[exception_type](str(exception))
-            error_code = camel_to_upper_snake_case(exception_type.__name__)
-            return create_error_response(
-                status_code=http_exception.status_code,
-                error_code=error_code,
-                message=http_exception.detail,
-            )
-        
-        else: 
-            raise exception
-
-    return handle_api_exception
