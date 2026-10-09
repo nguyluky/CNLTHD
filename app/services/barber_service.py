@@ -44,7 +44,7 @@ class BarberService:
         total = await self.db.scalar(count_query) or 0
 
         if total == 0:
-            raise BarberNotFoundException("Service not found")
+            raise BarberNotFoundException("Barber not found")
 
         # pagination
         offset = (filter.page - 1) * filter.limit

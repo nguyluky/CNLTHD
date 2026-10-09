@@ -1,17 +1,13 @@
 from datetime import date
 import json
-
 from redis_fastapi import CacheBackendDep
-
-from app.core.database import get_db
 from app.schemas.barber import BarberFilterParam, BarberOut
 from app.schemas.barber_schedule import AvailableSlotOut
 from app.schemas.common import PageResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.core.exception import NotFoundException
+from fastapi import APIRouter, HTTPException, Query, status
 from app.services.barber_service import *
+
 router = APIRouter(prefix="/barbers", tags=["Barber"])
 
 @router.get(
@@ -27,10 +23,8 @@ async def get_barbers(
     """
     Get all barbers.
     """
-    try:
-        items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
 
     validated_items = [
         BarberOut.model_validate(service, from_attributes=True) for service in items
@@ -58,10 +52,8 @@ async def get_barber(
     """
     Get a barber by ID.
     """
-    try:
-        barber = await barber_service.get_barber_by_id(barber_id)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    barber = await barber_service.get_barber_by_id(barber_id)
 
     return barber
 
@@ -102,6 +94,6 @@ async def get_available_slots(
 
 map_exception = {
     BarberNotFoundException: lambda e: HTTPException(
-        status_code=404, detail=e or "Service not found"
+        status_code=404, detail=e or "Barber not found"
     ),
 }
