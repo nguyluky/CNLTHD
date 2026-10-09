@@ -320,29 +320,4 @@ map_exception = {
         status_code=404, detail=text or "Token not found or expired."
     ),
 }
-
-def handle_domain_exception(rep: Request, exception: Exception) -> JSONResponse:
-    """
-    Handle domain exceptions and map them to appropriate HTTP responses.
-    """
-    
-    exception_type = type(exception)
-    if exception_type in map_exception:
-        http_exception = map_exception[exception_type](str(exception))
-        error_code = camel_to_upper_snake_case(exception_type.__name__)
-        return create_error_response(
-            status_code=http_exception.status_code,
-            error_code=error_code,
-            message=http_exception.detail,
-        )
-    else:
-        logger.error(
-            f"Unhandled AuthException on {rep.method} {rep.url}: {exception}",
-            exc_info=True,
-        )
-        return create_error_response(
-            status_code=500,
-            error_code="INTERNAL_SERVER_ERROR",
-            message="A system error has occurred, please try again later.",
-        )
     
