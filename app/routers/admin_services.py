@@ -5,7 +5,6 @@ from app.core.database import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.schemas.services import ServiceCreateIn, ServiceFilterParamForPrivate, ServiceOutForPrivate, ServiceUpdateIn
 from app.services.services_service import *
-from redis_fastapi import CacheBackendDep
 
 router = APIRouter(prefix="/admin/services", 
                    tags=["Services"],
@@ -64,7 +63,6 @@ async def get_service_by_id(
 )
 async def create_service(
     body: ServiceCreateIn,
-    redis: CacheBackendDep,
     services_service: ServicesServiceDep
 ):
     """
@@ -72,8 +70,6 @@ async def create_service(
     """
     new_data = body.model_dump()
     service = await services_service.create_service(body=new_data)
-
-    await redis.delete_group("available_slot")
     
     return service
 
@@ -86,7 +82,6 @@ async def create_service(
 async def update_service(
     service_id: int,
     body: ServiceUpdateIn,
-    redis: CacheBackendDep,
     services_service: ServicesServiceDep
 ):
     """
@@ -96,8 +91,6 @@ async def update_service(
 
     service = await services_service.update_service(service_id, body=new_data)
 
-    await redis.delete_group("available_slot")
-    
     return service
 
 map_exception = {
