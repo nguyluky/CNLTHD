@@ -1,8 +1,8 @@
 import math
+import hashlib
+import json
 from datetime import date, datetime, timedelta
-import math
 from typing import Annotated
-from redis_fastapi import CacheBackend
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import BarberSchedule, Booking, BookingStatus, User, UserRole, get_db
@@ -10,7 +10,6 @@ from app.core.database import BarberSchedule, Booking, BookingStatus, User, User
 from fastapi import Depends
 from app.services.share import ServiceException
 from app.schemas.barber import BarberFilterParam
-from redis_fastapi import CacheBackend
 
 BUFFER_MINUTES = 10
 DEFAULT_SLOT_DURATION = 30
@@ -126,6 +125,23 @@ class BarberService:
                 curr_time += timedelta(minutes=slot_duration)
 
         return available_slots   
+
+def get_barbers_cache_key(filter: BarberFilterParam) -> str:
+    params = filter.model_dump(mode="json")
+
+    # Chuẩn hóa tham số để tạo key
+    serialized = json.dumps(
+        params,
+        sort_keys=True,
+        ensure_ascii=False
+    )
+
+    key_hash = hashlib.sha256(
+        serialized.encode("utf-8")
+    ).hexdigest()
+
+    return f"barbers:list:{key_hash}"
+
 
 def get_barber_service(db: AsyncSession = Depends(get_db)) -> BarberService:
     return BarberService(db)

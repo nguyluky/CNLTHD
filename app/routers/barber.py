@@ -1,5 +1,6 @@
 from datetime import date
 import json
+from urllib import response
 from redis_fastapi import CacheBackendDep
 from app.schemas.barber import BarberFilterParam, BarberOut
 from app.schemas.barber_schedule import AvailableSlotOut
@@ -18,11 +19,22 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
 )
 async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
-    barber_service: BarberServiceDep
+    barber_service: BarberServiceDep,
+    redis: CacheBackendDep,
     ):
     """
     Get all barbers.
     """
+
+    key = get_barbers_cache_key(filter)
+
+    cached = await redis.get(
+        key,
+        eviction_group="barber"
+    )
+    if cached is not None:
+        return cached
+
 
     items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
 
@@ -30,13 +42,22 @@ async def get_barbers(
         BarberOut.model_validate(service, from_attributes=True) for service in items
     ]
 
-    return PageResponse[BarberOut](
+    response = PageResponse[BarberOut](
         items=validated_items,
         total=total,
         page=filter.page,
         size=filter.limit,
         pages=pages,
     )
+
+    await redis.set(
+        key,
+        response.model_dump(mode="json"),
+        ttl=300,
+        eviction_group="barber"
+    )
+
+    return response
 
 
 @router.get(
@@ -47,13 +68,32 @@ async def get_barbers(
 )
 async def get_barber(
     barber_id: int,
-    barber_service: BarberServiceDep
+    barber_service: BarberServiceDep,
+    redis: CacheBackendDep,
 ):
     """
     Get a barber by ID.
     """
+    key = f"barbers:detail:{barber_id}"
+
+    cached = await redis.get(
+        key,
+        eviction_group="barber"
+    )
+
+    if cached is not None:
+        return cached
 
     barber = await barber_service.get_barber_by_id(barber_id)
+
+    response = BarberOut.model_validate(barber)
+
+    await redis.set(
+        key,
+        response.model_dump(mode="json"),
+        ttl=300,
+        eviction_group="barber"
+    )
 
     return barber
 
