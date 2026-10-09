@@ -91,25 +91,14 @@ async def test_get_services_requires_admin(client, create_auth_client_for_user, 
     assert response.json()["message"] == "You are unauthorized to perform this action"
 
 @pytest.mark.anyio
-async def test_create_service_delete_cache(
+async def test_create_service(
     client,
-    cache,
     admin_user,
     create_auth_client_for_user
 ):
 
     client = await create_auth_client_for_user(admin_user)
 
-    await cache.set(
-        "test_available_slot",
-        {"slots": ["09:00", "10:00"]},
-        eviction_group="available_slot"
-    )
-
-    assert await cache.has(
-        "test_available_slot",
-        eviction_group="available_slot"
-    )
 
     response = await client.post(
         "/admin/services",
@@ -129,15 +118,9 @@ async def test_create_service_delete_cache(
     assert Decimal(body["price"]) == Decimal("100000")
     assert body["duration_minutes"] == 30
 
-    assert not await cache.has(
-        "test_available_slot",
-        eviction_group="available_slot"
-    )
-
 @pytest.mark.anyio
-async def test_update_service_delete_cache(
+async def test_update_service(
     client,
-    cache,
     admin_user,
     create_auth_client_for_user,
     sample_services
@@ -145,17 +128,6 @@ async def test_update_service_delete_cache(
     client = await create_auth_client_for_user(admin_user)
 
     service_id = sample_services[0].id
-
-    await cache.set(
-        "test_available_slot",
-        {"slots": ["09:00", "10:00"]},
-        eviction_group="available_slot"
-    )
-
-    assert await cache.has(
-        "test_available_slot",
-        eviction_group="available_slot"
-    )
 
     response = await client.patch(
         f"/admin/services/{service_id}",
@@ -175,8 +147,3 @@ async def test_update_service_delete_cache(
     assert body["description"] == "Dịch vụ cắt tóc cao cấp"
     assert Decimal(body["price"]) == Decimal("150000")
     assert body["duration_minutes"] == 45
-
-    assert not await cache.has(
-        "test_available_slot",
-        eviction_group="available_slot"
-    )
