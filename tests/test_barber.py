@@ -1,7 +1,13 @@
 import pytest
 from datetime import date, time, timedelta, datetime
 from app.core.database import User, UserRole
+from app.schemas.barber import *
+from app.services.barber_service import get_barbers_cache_key
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
 pytestmark = pytest.mark.anyio
+
 
 async def test_get_barbers_returns_barbers_with_pagination_metadata(
     client, barber_userA, customer_userA
@@ -221,3 +227,72 @@ async def test_cache_invalidation_on_schedule_change(
 
     assert len(await redis_client.keys(cache_pattern)) == 0, "cache should be invalidate after a schedule update"
 
+
+async def test_get_barbers_cache(
+    client,
+    cache,
+    barber_userA,
+    barber_userB,
+):
+    
+    filter_params = BarberFilterParam(
+        page=1,
+        limit=10
+    )
+
+    key = get_barbers_cache_key(filter_params)
+
+    assert await cache.get(
+        key,
+        eviction_group="barber"
+    ) is None
+
+    response = await client.get(
+        "/barbers",
+        params={
+            "page": 1,
+            "limit": 10
+        }
+    )
+
+    assert response.status_code == 200
+
+    cached = await cache.get(
+        key,
+        eviction_group="barber"
+    )
+
+    assert cached is not None
+    assert cached == response.json()
+
+    assert cached["total"] == 2
+    assert len(cached["items"]) == 2
+    assert cached["page"] == 1
+    assert cached["size"] == 10
+
+async def test_get_barber_cache(
+    client,
+    cache,
+    barber_userA,
+):
+    barber_id = barber_userA.id
+    key = f"barbers:detail:{barber_id}"
+
+    assert await cache.get(
+        key,
+        eviction_group="barber"
+    ) is None
+
+    response = await client.get(
+        f"/barbers/{barber_id}"
+    )
+
+    assert response.status_code == 200
+
+    cached = await cache.get(
+        key,
+        eviction_group="barber"
+    )
+
+    assert cached is not None
+    assert cached == response.json()
