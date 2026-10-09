@@ -1,5 +1,6 @@
 from decimal import Decimal
 from datetime import timedelta
+import decimal
 
 import pytest
 
@@ -88,3 +89,94 @@ async def test_get_services_requires_admin(client, create_auth_client_for_user, 
 
     assert response.status_code == 403
     assert response.json()["message"] == "You are unauthorized to perform this action"
+
+@pytest.mark.anyio
+async def test_create_service_delete_cache(
+    client,
+    cache,
+    admin_user,
+    create_auth_client_for_user
+):
+
+    client = await create_auth_client_for_user(admin_user)
+
+    await cache.set(
+        "test_available_slot",
+        {"slots": ["09:00", "10:00"]},
+        eviction_group="available_slot"
+    )
+
+    assert await cache.has(
+        "test_available_slot",
+        eviction_group="available_slot"
+    )
+
+    response = await client.post(
+        "/admin/services",
+        json={
+            "name": "Cắt tóc nam",
+            "description": "Dịch vụ cắt tóc",
+            "price": 100000,
+            "duration_minutes": 30,
+        }
+    )
+
+    assert response.status_code == 201, response.text
+
+    body = response.json()
+    assert body["name"] == "Cắt tóc nam"
+    assert body["description"] == "Dịch vụ cắt tóc"
+    assert Decimal(body["price"]) == Decimal("100000")
+    assert body["duration_minutes"] == 30
+
+    assert not await cache.has(
+        "test_available_slot",
+        eviction_group="available_slot"
+    )
+
+@pytest.mark.anyio
+async def test_update_service_delete_cache(
+    client,
+    cache,
+    admin_user,
+    create_auth_client_for_user,
+    sample_services
+):
+    client = await create_auth_client_for_user(admin_user)
+
+    service_id = sample_services[0].id
+
+    await cache.set(
+        "test_available_slot",
+        {"slots": ["09:00", "10:00"]},
+        eviction_group="available_slot"
+    )
+
+    assert await cache.has(
+        "test_available_slot",
+        eviction_group="available_slot"
+    )
+
+    response = await client.patch(
+        f"/admin/services/{service_id}",
+        json={
+            "name": "Cắt tóc nam VIP",
+            "description": "Dịch vụ cắt tóc cao cấp",
+            "price": 150000,
+            "duration_minutes": 45,
+        }
+    )
+
+    assert response.status_code == 200, response.text
+
+    body = response.json()
+    assert body["id"] == service_id
+    assert body["name"] == "Cắt tóc nam VIP"
+    assert body["description"] == "Dịch vụ cắt tóc cao cấp"
+    assert Decimal(body["price"]) == Decimal("150000")
+    assert body["duration_minutes"] == 45
+
+    assert not await cache.has(
+        "test_available_slot",
+        eviction_group="available_slot"
+    )
