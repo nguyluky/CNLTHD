@@ -21,7 +21,7 @@ class _ServiveException(ServiceException):
 class ServiceNotFoundException(_ServiveException):
     pass
 
-class ServicesSevice:
+class ServicesService:
     def __init__(self, db: AsyncSession):
             self.db = db
 
@@ -153,8 +153,8 @@ class ServicesSevice:
 
         return service
 
-def get_services_service(db: AsyncSession = Depends(get_db)) -> ServicesSevice:
-    return ServicesSevice(db)
+def get_services_service(db: AsyncSession = Depends(get_db)) -> ServicesService:
+    return ServicesService(db)
 
 
-ServicesServiceDep = Annotated[ServicesSevice, Depends(get_services_service)]
+ServicesServiceDep = Annotated[ServicesService, Depends(get_services_service)]
