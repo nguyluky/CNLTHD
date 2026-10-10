@@ -8,6 +8,7 @@ from app.schemas.common import PageResponse
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 from app.services.barber_service import *
+from redis_fastapi import cache, cache_evict, cache_put, default_key_builder
 
 router = APIRouter(prefix="/barbers", tags=["Barber"])
 
@@ -16,30 +17,20 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
     description="Get all barbers",
     response_model=PageResponse[BarberOut],
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(cache(ttl=300, eviction_group="barber"))]
 )
 async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
     barber_service: BarberServiceDep,
-    redis: CacheBackendDep,
     ):
     """
     Get all barbers.
     """
 
-    key = get_barbers_cache_key(filter)
-
-    cached = await redis.get(
-        key,
-        eviction_group="barber"
-    )
-    if cached is not None:
-        return cached
-
-
     items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
 
     validated_items = [
-        BarberOut.model_validate(service, from_attributes=True) for service in items
+        BarberOut.model_validate(service) for service in items
     ]
 
     response = PageResponse[BarberOut](
@@ -50,13 +41,6 @@ async def get_barbers(
         pages=pages,
     )
 
-    await redis.set(
-        key,
-        response.model_dump(mode="json"),
-        ttl=300,
-        eviction_group="barber"
-    )
-
     return response
 
 
@@ -65,37 +49,21 @@ async def get_barbers(
     description="Get barber by ID",
     response_model=BarberOut,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(cache(ttl=300, eviction_group="barber"))]
 )
 async def get_barber(
     barber_id: int,
     barber_service: BarberServiceDep,
-    redis: CacheBackendDep,
 ):
     """
     Get a barber by ID.
     """
-    key = f"barbers:detail:{barber_id}"
-
-    cached = await redis.get(
-        key,
-        eviction_group="barber"
-    )
-
-    if cached is not None:
-        return cached
 
     barber = await barber_service.get_barber_by_id(barber_id)
 
     response = BarberOut.model_validate(barber)
 
-    await redis.set(
-        key,
-        response.model_dump(mode="json"),
-        ttl=300,
-        eviction_group="barber"
-    )
-
-    return barber
+    return response
 
 @router.get(
     "/{barber_id}/available-slots",

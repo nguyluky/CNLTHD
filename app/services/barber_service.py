@@ -126,22 +126,6 @@ class BarberService:
 
         return available_slots   
 
-def get_barbers_cache_key(filter: BarberFilterParam) -> str:
-    params = filter.model_dump(mode="json")
-
-    # Chuẩn hóa tham số để tạo key
-    serialized = json.dumps(
-        params,
-        sort_keys=True,
-        ensure_ascii=False
-    )
-
-    key_hash = hashlib.sha256(
-        serialized.encode("utf-8")
-    ).hexdigest()
-
-    return f"barbers:list:{key_hash}"
-
 
 def get_barber_service(db: AsyncSession = Depends(get_db)) -> BarberService:
     return BarberService(db)
