@@ -1,19 +1,9 @@
-import uuid
-from datetime import datetime, timedelta, timezone
 from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from redis_fastapi import CacheBackendDep
-from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
-
 from app.core.config import config
-from app.core.database import SessionToken, User, get_db
+from app.core.database import User
 from app.core.helper import camel_to_upper_snake_case
 from app.schemas.auth import (
     DevicesOut,
@@ -24,7 +14,6 @@ from app.schemas.auth import (
     RegisterIn,
     RegisterOut,
 )
-from app.core.security import decode_token, hash_sha256
 from app.dependencies import EmailServiceDep, get_current_active_user
 from app.core.logger import logger
 from app.schemas.common import create_error_response

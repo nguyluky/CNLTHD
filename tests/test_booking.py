@@ -16,18 +16,6 @@ def booking_data():
         "service_ids": [1],
     }
 
-# def booking_single(customer_user, barber_user):
-#     return Booking(
-#         id=1,
-#         customer_id=customer_user.id,
-#         barber_id=barber_user.id,
-#         booking_date=date.today(),
-#         start_time=time(9, 0),
-#         end_time=time(9, 30),
-#         total_price=100000,
-#         status=BookingStatus.pending,
-#     )
-
 
 async def test_create_booking_success(
     create_auth_client_for_user, customer_userA, sample_services, booking_data

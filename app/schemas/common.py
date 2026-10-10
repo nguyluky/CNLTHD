@@ -1,19 +1,36 @@
 from typing import Annotated, Any, Sequence
 from fastapi.responses import JSONResponse
 from typing import Annotated, Generic, TypeVar
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, BeforeValidator
 from app.core.constants import EMAIL_REGEX, PHONE_REGEX
+from app.core.security import sanitize_plain_text, sanitize_rich_text
 
 
 CustomEmailStr = Annotated[
-    str, Field(pattern=EMAIL_REGEX, examples=["user@example.com"])
+    str, 
+    Field(pattern=EMAIL_REGEX, examples=["user@example.com"])
 ]
 
 CustomPhoneStr = Annotated[str, Field(pattern=PHONE_REGEX, examples=["0912345678"])]
 
-FullNameStr = Annotated[str, Field(min_length=3, max_length=100, examples=["John Doe"])]
+SanitizedFullNameStr = Annotated[
+    str, 
+    BeforeValidator(sanitize_plain_text),
+    Field(min_length=3, max_length=100, examples=["John Doe"])
+]
 
 PasswordStr = Annotated[str, Field(min_length=8, max_length=32)]
+
+SanitizedNameStr = Annotated[
+    str,
+    BeforeValidator(sanitize_plain_text) 
+]
+
+SanitizedDescriptionStr = Annotated[
+    str,
+    BeforeValidator(sanitize_rich_text) 
+]
+
 
 # Reusable generic PageResponse 
 T=TypeVar("T")
