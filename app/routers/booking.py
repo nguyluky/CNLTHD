@@ -1,14 +1,16 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from redis_fastapi import CacheBackendDep
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import (
     BookingStatus,
     User,
     UserRole,
     get_db,
 )
-from app.core.exception import NotFoundException, RequestedServiceForBookingNotFound
+from app.core.exception import NotFoundException
 from app.dependencies import get_current_active_user, require_roles
 from app.schemas.booking import (
     BookingCreateIn,
@@ -17,8 +19,10 @@ from app.schemas.booking import (
     BookingScheduleIn,
     BookingStatusIn,
 )
+from app.schemas.common import create_page_response
 from app.schemas.common import PageResponse
 from app.services import booking_service
+from app.services.booking_service import BookingServiceDep, BookingServicePolicyDep, BookingAlreadyFinalizedException, RequestedServiceForBookingNotFound
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -31,28 +35,14 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"])
 )
 async def get_booking_detail(
     booking_id: int,
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
+    booking_service: BookingServiceDep,
+    booking_service_policy: BookingServicePolicyDep,
+    # current_user: User = Depends(get_current_active_user),
 ):
-    try:
-        booking = await booking_service.get_booking_by_id(booking_id, db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    booking = await booking_service.get_booking_by_id(booking_id)
 
     # policy check
-    is_admin = current_user.is_admin()
-    is_owner_customer = (
-        current_user.is_customer() and current_user.id == booking.customer_id
-    )
-    is_assigned_barber = (
-        current_user.is_barber() and current_user.id == booking.barber_id
-    )
-
-    if not (is_admin or is_owner_customer or is_assigned_barber):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allow to perform this action",
-        )
+    booking_service_policy.has_permission_to_view_booking(booking)
 
     return booking
 
@@ -64,28 +54,26 @@ async def get_booking_detail(
     status_code=status.HTTP_200_OK,
 )
 async def get_bookings(
-    filter: Annotated[BookingFilterParam, Query()],
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
+    filter_: Annotated[BookingFilterParam, Query()],
+    booking_service: BookingServiceDep,
+    booking_service_policy: BookingServicePolicyDep,
 ):
-    try:
-        items, total, pages = await booking_service.get_filtered_bookings_for_user(
-            filter=filter, current_user=current_user, db=db
-        )
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    filter_ = booking_service_policy.apply_user_filter(filter_)
 
-    # convert to Booking
-    validated_items = [
-        BookingOut.model_validate(booking, from_attributes=True) for booking in items
-    ]
+    items, total = await booking_service.get_filtered_bookings(
+        page=filter_.page,
+        limit=filter_.limit,
+        booking_date=filter_.booking_date,
+        status=filter_.status,
+        barber_id=filter_.barber_id,
+        customer_id=filter_.customer_id,
+    )
 
-    return PageResponse[BookingOut](
-        items=validated_items,
+    return create_page_response(
+        items=items,
         total=total,
-        page=filter.page,
-        size=filter.limit,
-        pages=pages,
+        page=filter_.page,
+        size=filter_.limit,
     )
 
 
@@ -98,8 +86,8 @@ async def get_bookings(
 async def create_booking(
     body: BookingCreateIn,
     redis: CacheBackendDep,
+    booking_service: BookingServiceDep,
     current_user: User = Depends(require_roles(UserRole.customer)),
-    db: AsyncSession = Depends(get_db),
 ):
     """
     Creates booking.
@@ -109,17 +97,13 @@ async def create_booking(
     - **service_ids**: List of choosen service ids
     """
 
-    try:
-        booking = await booking_service.create_booking(
-            current_user=current_user, 
-            barber_id=body.barber_id, 
-            booking_date=body.booking_date, 
-            start_time=body.start_time, 
-            service_ids=body.service_ids, 
-            db=db,
-        )
-    except RequestedServiceForBookingNotFound as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    booking = await booking_service.create_booking(
+        user_id=current_user.id,
+        barber_id=body.barber_id,
+        booking_date=body.booking_date,
+        start_time=body.start_time,
+        service_ids=body.service_ids,
+    )
 
     await redis.delete_group("available_slot")
 
@@ -135,35 +119,24 @@ async def update_booking_status(
     booking_id: int,
     body: BookingStatusIn,
     redis: CacheBackendDep,
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber)),
-    db: AsyncSession = Depends(get_db),
+    booking_service: BookingServiceDep,
+    booking_service_policy: BookingServicePolicyDep,
 ):
     """
     Update booking status.
     - **status**: new status for booking
     """
 
-    try:
-        booking = await booking_service.get_booking_by_id(booking_id, db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    booking = await booking_service.get_booking_by_id(booking_id)
 
-    # policy check
-    is_admin = current_user.is_admin()
-    is_assigned_barber = (
-        current_user.is_barber() and current_user.id == booking.barber_id
-    )
 
-    if not (is_admin or is_assigned_barber):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allow to perform this action",
-        )
+    booking_service_policy.has_permission_to_view_booking(booking)
 
-    await booking_service.update_booking_status(booking, body.status, db)
+    await booking_service.update_booking_status(booking=booking, new_status=body.status)
+
     await redis.delete_group("available_slot")
 
-    return {"message": "Update Booking status successfully"}
+    return booking
 
 
 @router.patch(
@@ -174,36 +147,17 @@ async def update_booking_status(
 async def cancel_booking(
     booking_id: int,
     redis: CacheBackendDep,
-    current_user: User = Depends(get_current_active_user),
+    booking_service: BookingServiceDep,
+    booking_service_policy: BookingServicePolicyDep,
     db: AsyncSession = Depends(get_db),
 ):
-    try:
-        booking = await booking_service.get_booking_by_id(booking_id, db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
-    if booking.status is BookingStatus.completed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot cancel completed booking",
-        )
+    booking = await booking_service.get_booking_by_id(booking_id)
 
     # policy check
-    is_admin = current_user.is_admin()
-    is_owner_customer = (
-        current_user.is_customer() and current_user.id == booking.customer_id
-    )
-    is_assigned_barber = (
-        current_user.is_barber() and current_user.id == booking.barber_id
-    )
+    booking_service_policy.has_permission_to_view_booking(booking)
 
-    if not (is_admin or is_owner_customer or is_assigned_barber):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allow to perform this action",
-        )
+    await booking_service.update_booking_status(booking=booking, new_status=BookingStatus.cancelled)
 
-    await booking_service.update_booking_status(booking, BookingStatus.cancelled, db)
     await redis.delete_group("available_slot")
 
     return {"message": "Cancel Booking successfully"}
@@ -218,8 +172,9 @@ async def update_booking_schedule(
     booking_id: int,
     body: BookingScheduleIn,
     redis: CacheBackendDep,
+    booking_service: BookingServiceDep,
+    booking_service_policy: BookingServicePolicyDep,
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.customer)),
-    db: AsyncSession = Depends(get_db),
 ):
     """
     Reschedule booking.
@@ -227,28 +182,24 @@ async def update_booking_schedule(
     - **start_time**: Optional new time of the day the booking is scheduled
     """
 
-    try:
-        booking = await booking_service.get_booking_by_id(booking_id, db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    booking = await booking_service.get_booking_by_id(booking_id)
 
     # policy check
-    is_admin = current_user.is_admin()
-    is_owner_customer = (
-        current_user.is_customer() and current_user.id == booking.customer_id
-    )
+    booking_service_policy.has_permission_to_view_booking(booking)
 
-    if not (is_admin or is_owner_customer):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not allow to perform this action",
-        )
-
-    update_data = body.model_dump(exclude_unset=True)
 
     await booking_service.update_booking_schedule(
-        booking=booking, update_data=update_data, db=db
+        booking=booking, booking_date=body.booking_date, start_time=body.start_time
     )
     await redis.delete_group("available_slot")
 
     return {"message": "Reschedule Booking successfully"}
+
+map_exception  = {
+    RequestedServiceForBookingNotFound: lambda e: HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail=e or "Requested service for booking not found"
+    ),
+    BookingAlreadyFinalizedException: lambda e: HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail=e or "Cannot update status of a completed or cancelled booking"
+    ),
+}
