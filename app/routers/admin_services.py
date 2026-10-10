@@ -1,14 +1,15 @@
 from typing import Annotated
 from app.schemas.common import PageResponse
 from app.dependencies import require_roles
-from app.core.database import UserRole, get_db, User
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.schemas.services import ServiceCreateIn, ServiceFilterParamForPrivate, ServiceOutForPrivate, ServiceUpdateIn
-from app.services import services_service
-from app.core.exception import NotFoundException
+from app.services.services_service import *
 
-router = APIRouter(prefix="/admin/services", tags=["Services"])
+router = APIRouter(prefix="/admin/services", 
+                   tags=["Services"],
+                   dependencies=[Depends(require_roles(UserRole.admin))],
+                   )
 
 @router.get(
     "",
@@ -18,17 +19,12 @@ router = APIRouter(prefix="/admin/services", tags=["Services"])
 )
 async def get_services(
     filter: Annotated[ServiceFilterParamForPrivate, Query()],
-    db: AsyncSession = Depends(get_db), 
-    current_user: User = Depends(require_roles(UserRole.admin))
+    services_service: ServicesServiceDep
     ):
     """
     Get all services for admin.
     """
-
-    try:
-        items, total, pages = await services_service.get_filtered_services_for_private(filter=filter, db=db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    items, total, pages = await services_service.get_filtered_services_for_private(filter=filter)
 
     validated_items = [
         ServiceOutForPrivate.model_validate(service, from_attributes=True) for service in items
@@ -50,19 +46,12 @@ async def get_services(
 )
 async def get_service_by_id(
     service_id: int, 
-    db: AsyncSession = Depends(get_db), 
-    current_user: User = Depends(require_roles(UserRole.admin))
+    services_service: ServicesServiceDep 
     ):
     """
     Get a service by ID for admin.
     """
-    try:
-        service = await services_service.get_service_by_id(service_id, db=db)
-    except NotFoundException as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+    service = await services_service.get_service_by_id(service_id)
     
     return service
 
@@ -74,14 +63,13 @@ async def get_service_by_id(
 )
 async def create_service(
     body: ServiceCreateIn,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin))
+    services_service: ServicesServiceDep
 ):
     """
     Create a new service.
     """
     new_data = body.model_dump()
-    service = await services_service.create_service(body=new_data, db=db)
+    service = await services_service.create_service(body=new_data)
     
     return service
 
@@ -94,16 +82,19 @@ async def create_service(
 async def update_service(
     service_id: int,
     body: ServiceUpdateIn,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles(UserRole.admin))
+    services_service: ServicesServiceDep
 ):
     """
     Update a service.
     """
     new_data = body.model_dump(exclude_unset=True)
-    try:
-        service = await services_service.update_service(service_id, body=new_data, db=db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    service = await services_service.update_service(service_id, body=new_data)
 
     return service
+
+map_exception = {
+    ServiceNotFoundException: lambda e: HTTPException(
+        status_code=404, detail=e or "Service not found"
+    ),
+}

@@ -1,143 +1,160 @@
 import math
+from typing import Annotated
 
-from app.dependencies import get_current_active_user, require_roles
-from app.core.database import UserRole, get_db, Service, User
+from fastapi import Depends
+
+from app.core.database import Service, get_db
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exception import NotFoundException
-from app.schemas.services import ServiceFilterParamForPrivate, ServiceFilterParamForPublic, ServiceOutForPrivate, ServiceUpdateIn
+from app.schemas.services import ServiceFilterParamForPrivate, ServiceFilterParamForPublic
+from app.services.share import ServiceException
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import math
 
 
-async def get_filtered_services(
-    query: Select,
-    filter,
-    db: AsyncSession
-):
-    if filter.name:
-        query = query.where(Service.name.contains(filter.name))
+class _ServiveException(ServiceException):
+    pass
 
-    if filter.min_price is not None:
-        query = query.where(Service.price >= filter.min_price)
+class ServiceNotFoundException(_ServiveException):
+    pass
 
-    if filter.max_price is not None:
-        query = query.where(Service.price <= filter.max_price)
+class ServicesService:
+    def __init__(self, db: AsyncSession):
+            self.db = db
 
-    if filter.min_duration_minutes is not None:
-        query = query.where(
-            Service.duration_minutes >= filter.min_duration_minutes
+    async def get_filtered_services(
+        self,
+        query: Select,
+        filter,
+    ):
+        if filter.name:
+            query = query.where(Service.name.contains(filter.name))
+
+        if filter.min_price is not None:
+            query = query.where(Service.price >= filter.min_price)
+
+        if filter.max_price is not None:
+            query = query.where(Service.price <= filter.max_price)
+
+        if filter.min_duration_minutes is not None:
+            query = query.where(
+                Service.duration_minutes >= filter.min_duration_minutes
+            )
+
+        if filter.max_duration_minutes is not None:
+            query = query.where(
+                Service.duration_minutes <= filter.max_duration_minutes
+            )
+
+        if hasattr(filter, "is_active") and filter.is_active is not None:
+            query = query.where(Service.is_active == filter.is_active)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = await self.db.scalar(count_query) or 0
+
+        if total == 0:
+            raise ServiceNotFoundException("Service not found")
+
+        # pagination
+        offset = (filter.page - 1) * filter.limit
+
+        paginated_query = (
+            query
+            .order_by(Service.name.desc())
+            .offset(offset)
+            .limit(filter.limit)
         )
 
-    if filter.max_duration_minutes is not None:
-        query = query.where(
-            Service.duration_minutes <= filter.max_duration_minutes
+        result = await self.db.scalars(paginated_query)
+
+        items = result.all()
+        pages = math.ceil(total / filter.limit)
+
+        return items, total, pages
+
+
+    async def get_filtered_services_for_public(
+        self,
+        filter: ServiceFilterParamForPublic,
+    ):
+        query = select(Service).where(Service.is_active.is_(True))
+
+        return await self.get_filtered_services(
+            query=query,
+            filter=filter,
         )
 
-    if hasattr(filter, "is_active") and filter.is_active is not None:
-        query = query.where(Service.is_active == filter.is_active)
+    async def get_filtered_services_for_private(
+        self,
+        filter: ServiceFilterParamForPrivate,
+    ):
+        query = select(Service)
 
-    count_query = select(func.count()).select_from(query.subquery())
-    total = await db.scalar(count_query) or 0
+        if filter.is_active is not None:
+            query = query.where(Service.is_active == filter.is_active)
 
-    if total == 0:
-        raise NotFoundException("Service not found")
+        return await self.get_filtered_services(
+            query=query,
+            filter=filter,
+        )
 
-    # pagination
-    offset = (filter.page - 1) * filter.limit
+    async def get_service_by_id(
+        self,
+        service_id: int,
+    ):
+        service = await self.db.get(Service, service_id)
+        if not service:
+            raise ServiceNotFoundException("Not Found Service")
 
-    paginated_query = (
-        query
-        .order_by(Service.name.desc())
-        .offset(offset)
-        .limit(filter.limit)
-    )
+        return service
 
-    result = await db.scalars(paginated_query)
+    async def create_service(
+        self,
+        body: dict,
+    ) -> Service:
+        
+        service = Service(**body)
+        self.db.add(service)
+        await self.db.commit()
+        await self.db.refresh(service)
 
-    items = result.all()
-    pages = math.ceil(total / filter.limit)
+        return service
 
-    return items, total, pages
+    async def update_service(
+        self,
+        service_id: int,
+        body: dict,
+    ):
+        try:
+            service = await self.get_service_by_id(service_id)
+        except ServiceNotFoundException as e:
+            raise e
+
+        for key, value in body.items():
+            setattr(service, key, value)
+
+        self.db.add(service)
+        await self.db.commit()
+        await self.db.refresh(service)
+
+        return service
+
+    async def get_service_by_id_with_active_check(
+        self,
+        service_id: int,
+    ):
+        service = await self.get_service_by_id(service_id)
+
+        if not service.is_active:
+            raise ServiceNotFoundException("Service is inactive")
+
+        return service
+
+def get_services_service(db: AsyncSession = Depends(get_db)) -> ServicesService:
+    return ServicesService(db)
 
 
-async def get_filtered_services_for_public(
-    filter: ServiceFilterParamForPublic,
-    db: AsyncSession
-):
-    query = select(Service).where(Service.is_active.is_(True))
-
-    return await get_filtered_services(
-        query=query,
-        filter=filter,
-        db=db
-    )
-
-async def get_filtered_services_for_private(
-    filter: ServiceFilterParamForPrivate,
-    db: AsyncSession
-):
-    query = select(Service)
-
-    if filter.is_active is not None:
-        query = query.where(Service.is_active == filter.is_active)
-
-    return await get_filtered_services(
-        query=query,
-        filter=filter,
-        db=db
-    )
-
-async def get_service_by_id(
-    service_id: int,
-    db: AsyncSession
-):
-    service = await db.get(Service, service_id)
-    if not service:
-        raise NotFoundException("Not Found Service")
-
-    return service
-
-async def create_service(
-    body: dict,
-    db: AsyncSession
-) -> Service:
-    
-    service = Service(**body)
-    db.add(service)
-    await db.commit()
-    await db.refresh(service)
-
-    return service
-
-async def update_service(
-    service_id: int,
-    body: dict,
-    db: AsyncSession
-):
-    try:
-        service = await get_service_by_id(service_id, db=db)
-    except NotFoundException as e:
-        raise e
-
-    for key, value in body.items():
-        setattr(service, key, value)
-
-    db.add(service)
-    await db.commit()
-    await db.refresh(service)
-
-    return service
-
-async def get_service_by_id_with_active_check(
-    service_id: int,
-    db: AsyncSession
-):
-    service = await get_service_by_id(service_id, db=db)
-
-    if not service.is_active:
-        raise NotFoundException("Service is inactive")
-
-    return service
+ServicesServiceDep = Annotated[ServicesService, Depends(get_services_service)]

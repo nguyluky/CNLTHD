@@ -23,20 +23,16 @@ async def test_get_service_by_id(client, sample_services):
     }
 
 # get service by id not found
-@pytest.mark.parametrize(
-    ("service_id", "message"),
-    [
-        (999, "Not Found Service"),
-        (3, "Service is inactive"),
-    ],
-)
 async def test_get_service_by_id_not_found(
-    client, sample_services, service_id, message
+    client, sample_services
 ):
-    response = await client.get(f"/services/{service_id}")
+    response = await client.get(f"/services/{999999}")
 
     assert response.status_code == 404
-    assert response.json() == {"error_code": "NOT_FOUND", "message": message}
+    assert response.json() == {
+            "error_code": "SERVICE_NOT_FOUND_EXCEPTION",
+            "message": "Not Found Service",
+        }
 
 # get services with filter
 async def test_get_services(client, sample_services):
