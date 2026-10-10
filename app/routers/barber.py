@@ -17,7 +17,6 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
     description="Get all barbers",
     response_model=PageResponse[BarberOut],
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(cache(ttl=300, eviction_group="barber"))]
 )
 async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
@@ -49,7 +48,6 @@ async def get_barbers(
     description="Get barber by ID",
     response_model=BarberOut,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(cache(ttl=300, eviction_group="barber"))]
 )
 async def get_barber(
     barber_id: int,
