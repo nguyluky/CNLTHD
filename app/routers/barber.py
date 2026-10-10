@@ -1,17 +1,15 @@
 from datetime import date
 import json
-
+from urllib import response
 from redis_fastapi import CacheBackendDep
-
-from app.core.database import get_db
 from app.schemas.barber import BarberFilterParam, BarberOut
 from app.schemas.barber_schedule import AvailableSlotOut
 from app.schemas.common import PageResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from app.core.exception import NotFoundException
-from app.services import barber_service
+from fastapi import APIRouter, HTTPException, Query, status
+from app.services.barber_service import *
+from redis_fastapi import cache, cache_evict, cache_put, default_key_builder
+
 router = APIRouter(prefix="/barbers", tags=["Barber"])
 
 @router.get(
@@ -22,27 +20,27 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
 )
 async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
-    db: AsyncSession = Depends(get_db)
+    barber_service: BarberServiceDep,
     ):
     """
     Get all barbers.
     """
-    try:
-        items, total, pages = await barber_service.get_filtered_barbers(filter=filter, db=db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+    items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
 
     validated_items = [
-        BarberOut.model_validate(service, from_attributes=True) for service in items
+        BarberOut.model_validate(service) for service in items
     ]
 
-    return PageResponse[BarberOut](
+    response = PageResponse[BarberOut](
         items=validated_items,
         total=total,
         page=filter.page,
         size=filter.limit,
         pages=pages,
     )
+
+    return response
 
 
 @router.get(
@@ -53,17 +51,17 @@ async def get_barbers(
 )
 async def get_barber(
     barber_id: int,
-    db: AsyncSession = Depends(get_db)
+    barber_service: BarberServiceDep,
 ):
     """
     Get a barber by ID.
     """
-    try:
-        barber = await barber_service.get_barber_by_id(barber_id, db=db)
-    except NotFoundException as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
-    return barber
+    barber = await barber_service.get_barber_by_id(barber_id)
+
+    response = BarberOut.model_validate(barber)
+
+    return response
 
 @router.get(
     "/{barber_id}/available-slots",
@@ -73,10 +71,10 @@ async def get_barber(
 )
 async def get_available_slots(
     barber_id: int,
+    barber_service: BarberServiceDep,
     redis: CacheBackendDep,
     booking_date: date = Query(..., description="Specified date"),
     slot_duration: int = Query(30, description="specified slot duration in minutes"),
-    db: AsyncSession = Depends(get_db),
 ):
     available_slots = []
     
@@ -88,7 +86,6 @@ async def get_available_slots(
     available_slots = await barber_service.get_available_slot_minutes(
         barber_id=barber_id, 
         target_date=booking_date,
-        db=db,
         slot_duration=slot_duration
     )
 
@@ -100,3 +97,9 @@ async def get_available_slots(
         "slot_duration_minutes": slot_duration,
         "available_slots": available_slots
     }
+
+map_exception = {
+    BarberNotFoundException: lambda e: HTTPException(
+        status_code=404, detail=e or "Barber not found"
+    ),
+}
