@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, status
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import User, get_db
+import json
+from fastapi import APIRouter, Depends, HTTPException, status
+from redis_fastapi import CacheBackendDep
+from app.core.database import User
 from app.dependencies import get_current_active_user
 from app.schemas.user import UpdatePasswordIn, UpdateProfileIn, UserOut
 from app.services.user_service import EmailExistsException, InvalidOldPasswordException, PhoneExistsException, UserServiceDep
@@ -21,9 +21,19 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
 )
 async def get_current_user(
+    redis: CacheBackendDep,
     current_user: User = Depends(get_current_active_user),
 ):
-    return current_user
+    key = f"user:{current_user.id}:me"
+    cached_data = await redis.get(key=key, eviction_group="users")
+
+    if cached_data is not None:
+        return json.loads(json.loads(cached_data))
+
+    validated_user = UserOut.model_validate(current_user, from_attributes=True)
+    await redis.set(key, validated_user.model_dump_json(), ttl=300, eviction_group="users")
+        
+    return validated_user
 
 
 @router.put(
@@ -59,6 +69,7 @@ async def update_current_user_password(
 async def update_current_user_profile(
     body: UpdateProfileIn,
     user_service: UserServiceDep,
+    redis: CacheBackendDep,
     current_user: User = Depends(get_current_active_user),
 ):
     """
@@ -75,7 +86,11 @@ async def update_current_user_profile(
         update_data=update_data
     )
 
-    return current_user
+    key = f"user:{current_user.id}:me"
+    validated_user = UserOut.model_validate(current_user, from_attributes=True)
+    await redis.set(key, validated_user.model_dump_json(), ttl=300, eviction_group="users")
+            
+    return validated_user
 
 map_exception = {
     InvalidOldPasswordException: lambda e: HTTPException(
