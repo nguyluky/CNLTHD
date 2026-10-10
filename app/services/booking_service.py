@@ -25,13 +25,22 @@ from app.schemas.booking import BookingFilterParam
 from app.services.share import NotFoundException, NotAllowedException, ServiceException
 
 
-class RequestedServiceForBookingNotFound(ServiceException):
-    """Exception raised when a requested service for booking is not found."""
+class _BookingServiceException(ServiceException):
+    pass
+
+class BookingAlreadyFinalizedException(_BookingServiceException):
+    """Lỗi khi cập nhật lịch hẹn đã hoàn thành"""
 
     pass
 
-class BookingAlreadyFinalizedException(ServiceException):
-    """Lỗi khi cập nhật lịch hẹn đã hoàn thành"""
+
+class RequestedServiceForBookingNotFound(_BookingServiceException):
+    """Lỗi khi dịch vụ được yêu cầu để đặt lịch hẹn không tồn tại"""
+
+    pass
+
+class UserNotAllowedToViewBookingException(_BookingServiceException):
+    """Lỗi khi người dùng không được phép xem lịch hẹn"""
 
     pass
 
@@ -48,7 +57,7 @@ class BookingServicePolicy:
         is_assigned_barber = self.user.is_barber() and self.user.id == booking.barber_id
 
         if not is_admin and (not is_owner_customer and not is_assigned_barber):
-            raise NotAllowedException("You do not have permission to view this booking.")
+            raise UserNotAllowedToViewBookingException("You do not have permission to view this booking.")
 
     def apply_user_filter(
         self,

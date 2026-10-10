@@ -10,8 +10,7 @@ from app.core.database import (
     UserRole,
     get_db,
 )
-from app.core.exception import NotFoundException
-from app.dependencies import get_current_active_user, require_roles
+from app.dependencies import require_roles
 from app.schemas.booking import (
     BookingCreateIn,
     BookingFilterParam,
@@ -22,7 +21,7 @@ from app.schemas.booking import (
 from app.schemas.common import create_page_response
 from app.schemas.common import PageResponse
 from app.services import booking_service
-from app.services.booking_service import BookingServiceDep, BookingServicePolicyDep, BookingAlreadyFinalizedException, RequestedServiceForBookingNotFound
+from app.services.booking_service import BookingServiceDep, BookingServicePolicyDep, BookingAlreadyFinalizedException, RequestedServiceForBookingNotFound, UserNotAllowedToViewBookingException
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -201,5 +200,8 @@ map_exception  = {
     ),
     BookingAlreadyFinalizedException: lambda e: HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST, detail=e or "Cannot update status of a completed or cancelled booking"
+    ),
+    UserNotAllowedToViewBookingException: lambda e: HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail=e or "You do not have permission to view this booking."
     ),
 }
