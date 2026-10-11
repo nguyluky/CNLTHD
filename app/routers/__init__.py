@@ -12,7 +12,7 @@ from collections import deque
 
 from app.core.logger import logger
 from app.schemas.common import create_error_response
-from app.services.share import NotFoundException, ServiceException, UserNotFoundException, camel_to_upper_snake_case
+from app.services.share import NotAllowedException, NotFoundException, ServiceException, UserNotFoundException, camel_to_upper_snake_case
 
 # get all files in the current directory
 _files = os.listdir(os.path.dirname(__file__))
@@ -22,7 +22,7 @@ _routers: list[APIRouter] = []
 map_exception: dict[type[Exception], Callable] = {
     NotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "Resource not found"),
     UserNotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "User not found"),
-    
+    NotAllowedException: lambda msg: HTTPException(status_code=403, detail=msg or "Not allowed"),
 }
 
 for file in _files:

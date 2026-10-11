@@ -23,3 +23,8 @@ class NotFoundException(ServiceException):
 
 class UserNotFoundException(ServiceException):
     pass
+
+
+class NotAllowedException(ServiceException):
+    """Exception raised when a user is not allowed to perform an action."""
+    pass

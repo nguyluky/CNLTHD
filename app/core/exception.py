@@ -15,6 +15,3 @@ class ApiException(Exception):
 class NotFoundException(ApiException):
     pass
 
-
-class RequestedServiceForBookingNotFound(Exception):
-    pass
