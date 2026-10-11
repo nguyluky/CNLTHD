@@ -22,7 +22,7 @@ from app.core.database import BookingService as BookingServiceModel
 from app.dependencies import get_current_active_user
 from app.schemas.booking import BookingFilterParam
 
-from app.services.share import NotFoundException, NotAllowedException, ServiceException
+from app.services.share import ServiceException
 
 
 class _BookingServiceException(ServiceException):
@@ -41,6 +41,11 @@ class RequestedServiceForBookingNotFound(_BookingServiceException):
 
 class UserNotAllowedToViewBookingException(_BookingServiceException):
     """Lỗi khi người dùng không được phép xem lịch hẹn"""
+
+    pass
+
+class BookingNotFoundException(_BookingServiceException):
+    """Lỗi khi lịch hẹn không tồn tại"""
 
     pass
 
@@ -93,7 +98,7 @@ class BookingService:
         ).first()
 
         if not booking:
-            raise NotFoundException("Booking detail not found")
+            raise BookingNotFoundException("Booking detail not found")
 
         return booking
 
@@ -122,7 +127,7 @@ class BookingService:
         total = await self.db.scalar(count_query) or 0
 
         if total == 0:
-            raise NotFoundException("Booking not found")
+            raise BookingNotFoundException("Booking not found")
 
         offset = (page - 1) * limit
         paginated_query = (

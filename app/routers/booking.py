@@ -20,8 +20,14 @@ from app.schemas.booking import (
 )
 from app.schemas.common import create_page_response
 from app.schemas.common import PageResponse
-from app.services import booking_service
-from app.services.booking_service import BookingServiceDep, BookingServicePolicyDep, BookingAlreadyFinalizedException, RequestedServiceForBookingNotFound, UserNotAllowedToViewBookingException
+from app.services.booking_service import (
+    BookingServiceDep,
+    BookingServicePolicyDep,
+    BookingAlreadyFinalizedException,
+    RequestedServiceForBookingNotFound,
+    UserNotAllowedToViewBookingException,
+    BookingNotFoundException,
+)
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
@@ -128,7 +134,6 @@ async def update_booking_status(
 
     booking = await booking_service.get_booking_by_id(booking_id)
 
-
     booking_service_policy.has_permission_to_view_booking(booking)
 
     await booking_service.update_booking_status(booking=booking, new_status=body.status)
@@ -148,14 +153,15 @@ async def cancel_booking(
     redis: CacheBackendDep,
     booking_service: BookingServiceDep,
     booking_service_policy: BookingServicePolicyDep,
-    db: AsyncSession = Depends(get_db),
 ):
     booking = await booking_service.get_booking_by_id(booking_id)
 
     # policy check
     booking_service_policy.has_permission_to_view_booking(booking)
 
-    await booking_service.update_booking_status(booking=booking, new_status=BookingStatus.cancelled)
+    await booking_service.update_booking_status(
+        booking=booking, new_status=BookingStatus.cancelled
+    )
 
     await redis.delete_group("available_slot")
 
@@ -166,6 +172,7 @@ async def cancel_booking(
     "/{booking_id}/reschedule",
     description="Allows owner customers and admins to change the date and time of booking",
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_roles(UserRole.admin, UserRole.customer))]
 )
 async def update_booking_schedule(
     booking_id: int,
@@ -173,7 +180,6 @@ async def update_booking_schedule(
     redis: CacheBackendDep,
     booking_service: BookingServiceDep,
     booking_service_policy: BookingServicePolicyDep,
-    current_user: User = Depends(require_roles(UserRole.admin, UserRole.customer)),
 ):
     """
     Reschedule booking.
@@ -186,7 +192,6 @@ async def update_booking_schedule(
     # policy check
     booking_service_policy.has_permission_to_view_booking(booking)
 
-
     await booking_service.update_booking_schedule(
         booking=booking, booking_date=body.booking_date, start_time=body.start_time
     )
@@ -194,14 +199,21 @@ async def update_booking_schedule(
 
     return {"message": "Reschedule Booking successfully"}
 
-map_exception  = {
+
+map_exception = {
     RequestedServiceForBookingNotFound: lambda e: HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST, detail=e or "Requested service for booking not found"
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=e or "Requested service for booking not found",
     ),
     BookingAlreadyFinalizedException: lambda e: HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST, detail=e or "Cannot update status of a completed or cancelled booking"
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=e or "Cannot update status of a completed or cancelled booking",
     ),
     UserNotAllowedToViewBookingException: lambda e: HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN, detail=e or "You do not have permission to view this booking."
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=e or "You do not have permission to view this booking.",
+    ),
+    BookingNotFoundException: lambda e: HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=e or "Booking not found"
     ),
 }
