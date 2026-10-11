@@ -4,7 +4,7 @@ import json
 import logging
 import logging.config
 
-from app.core.config import config
+from app.core.config import configEnv
 
 
 class JSONFormatter(logging.Formatter):
@@ -27,8 +27,8 @@ class JSONFormatter(logging.Formatter):
 
 # logger config
 
-if config.ENV == "production":
-    logger = logging.getLogger(config.APP_NAME)
+if configEnv.ENV == "production":
+    logger = logging.getLogger(configEnv.APP_NAME)
     handler = logging.StreamHandler()
     handler.setFormatter(JSONFormatter())
     logger.addHandler(handler)
@@ -99,4 +99,4 @@ else:
 
     logging.config.dictConfig(LOGGING_CONFIG)
 
-    logger = logging.getLogger(config.APP_NAME)
+    logger = logging.getLogger(configEnv.APP_NAME)
