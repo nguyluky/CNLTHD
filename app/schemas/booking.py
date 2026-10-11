@@ -15,6 +15,7 @@ class BookingFilterParam(FilterParamBase):
     customer_id: Optional[int] = None
 
 
+
 class BookingStatusIn(BaseModel):
     status: BookingStatus
 
