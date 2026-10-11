@@ -9,7 +9,7 @@ from redis_fastapi import FastAPIRedis
 
 from app.schemas.common import create_error_response, ErrorModel, ValidationErrorModel, create_validation_error_response
 from app.core.logger import logger
-from app.core.config import config
+from app.core.config import configEnv
 from app.core.database import Base
 from app.core.database import engine
 from app.routers import router, exception_handler
@@ -34,7 +34,7 @@ origins = [
 ]
 
 app = FastAPI(
-    title=config.APP_NAME,
+    title=configEnv.APP_NAME,
     version="1.0.0",
     lifespan=lifespan,
     responses={
@@ -116,3 +116,4 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         message=message,
         details=sanitized_errors,
     )
+
