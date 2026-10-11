@@ -1,10 +1,10 @@
 
-Thư mục trức router public
+Thư mục chứa router public
 
 mọi file ở đây đều là router và sẽ tự động import không cần import vào main
 mỗi file phải có biến router và biến map_exception
 
 router là APIRouter của fast api
-map_exception là dict máp Exception từ tần service thành Http error trả về cho người dùng
+map_exception là dict map Exception từ tầng service thành Http error trả về cho người dùng
 
-file __init__.py sẽ tự input router và map_exception kiểm tra có error nào bị chùng tên chưa được handle đảm bảo mọi lỗi đều được handle
+file __init__.py sẽ tự input router và map_exception kiểm tra có error nào bị trùng tên chưa được handle đảm bảo mọi lỗi đều được handle

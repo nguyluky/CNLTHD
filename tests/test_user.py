@@ -1,13 +1,16 @@
+import json
 import pytest
 from sqlalchemy import select
-
-from app.core.database import Base, User, UserRole, get_db
-from app.main import app
+from app.core.database import User
 
 
 pytestmark = pytest.mark.anyio
 
-async def test_get_user_profile(create_auth_client_for_user, customer_userA):
+
+async def test_get_user_profile(
+    create_auth_client_for_user,
+    customer_userA,
+):
     auth_client = await create_auth_client_for_user(customer_userA)
     response = await auth_client.get("/users/me")
 
@@ -65,15 +68,22 @@ async def test_update_profile_fail(
         assert user_in_db is not None
 
 
-async def test_update_user_password_success(create_auth_client_for_user, customer_userA, customer_dataA):
-    request = {"old_password": customer_dataA["password"], "new_password": "newtestpassword"}
+async def test_update_user_password_success(
+    create_auth_client_for_user, customer_userA, customer_dataA
+):
+    request = {
+        "old_password": customer_dataA["password"],
+        "new_password": "newtestpassword",
+    }
 
     auth_client = await create_auth_client_for_user(customer_userA)
     response = await auth_client.put("/users/me/password", json=request)
     assert response.status_code == 204
 
 
-async def test_update_user_password_fail(create_auth_client_for_user, customer_userA, customer_dataA):
+async def test_update_user_password_fail(
+    create_auth_client_for_user, customer_userA, customer_dataA
+):
     # oldpassword is incorrect
     invalid_oldpass_request = {
         "old_password": "wrongpassword",

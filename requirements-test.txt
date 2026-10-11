@@ -2,3 +2,4 @@
 pytest
 fakeredis
 pytest-cov
+asgi-lifespan
