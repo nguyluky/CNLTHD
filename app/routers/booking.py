@@ -8,7 +8,6 @@ from app.core.database import (
     BookingStatus,
     User,
     UserRole,
-    get_db,
 )
 from app.dependencies import require_roles
 from app.schemas.booking import (
@@ -119,6 +118,8 @@ async def create_booking(
     "/{booking_id}/status",
     description="Changes the booking status",
     status_code=status.HTTP_200_OK,
+    response_model=BookingOut,
+    dependencies=[Depends(require_roles(UserRole.admin, UserRole.barber))],
 )
 async def update_booking_status(
     booking_id: int,

@@ -147,7 +147,6 @@ async def test_update_status_booking_with_admin(
     create_auth_client_for_user, admin_user, sample_bookings, session_factory
 ):
     booking = sample_bookings[0]
-    booking.status = BookingStatus.completed
 
     payload = {"status": BookingStatus.confirmed}
     admin_client = await create_auth_client_for_user(admin_user)
