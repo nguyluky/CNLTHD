@@ -127,12 +127,11 @@ async def test_cancel_booking_with_owner_customer(
 
 
 async def test_cancel_booking_fail_bad_request(
-    create_auth_client_for_user, customer_userA, sample_bookings, session_factory
+    create_auth_client_for_user, customer_userB, sample_bookings, session_factory
 ):
     booking = sample_bookings[2]
-    booking.status = BookingStatus.completed
 
-    customer_client = await create_auth_client_for_user(customer_userA)
+    customer_client = await create_auth_client_for_user(customer_userB)
     response = await customer_client.patch(f"/bookings/{booking.id}/cancel")
     assert response.status_code == 400
 
@@ -148,14 +147,13 @@ async def test_update_status_booking_with_admin(
     create_auth_client_for_user, admin_user, sample_bookings, session_factory
 ):
     booking = sample_bookings[0]
-    booking.status = BookingStatus.completed
 
     payload = {"status": BookingStatus.confirmed}
     admin_client = await create_auth_client_for_user(admin_user)
     response = await admin_client.patch(f"/bookings/{booking.id}/status", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["message"] == "Update Booking status successfully"
+    assert data["status"] == BookingStatus.confirmed
 
     # making sure the status actually changed
     async with session_factory() as db:

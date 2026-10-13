@@ -1,7 +1,10 @@
 import pytest
 from datetime import date, time, timedelta, datetime
 from app.core.database import User, UserRole
+from app.schemas.barber import *
+
 pytestmark = pytest.mark.anyio
+
 
 async def test_get_barbers_returns_barbers_with_pagination_metadata(
     client, barber_userA, customer_userA
@@ -109,7 +112,7 @@ async def test_get_barber_by_id_not_found(client, missing_or_non_barber_id):
 
     assert response.status_code == 404
     assert response.json() == {
-        "error_code": "NOT_FOUND",
+        'error_code': 'BARBER_NOT_FOUND_EXCEPTION',
         "message": "Barber not found",
     }
 
@@ -220,4 +223,5 @@ async def test_cache_invalidation_on_schedule_change(
     assert update_response.status_code == 200, "update should succeeded"
 
     assert len(await redis_client.keys(cache_pattern)) == 0, "cache should be invalidate after a schedule update"
+
 

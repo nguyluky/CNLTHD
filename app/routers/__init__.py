@@ -23,7 +23,7 @@ _routers: list[APIRouter] = []
 map_exception: dict[type[Exception], Callable] = {
     NotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "Resource not found"),
     UserNotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "User not found"),
-    NotAllowedException: lambda msg: HTTPException(status_code=403, detail=msg or "You are not allowed to perform this action"),
+    NotAllowedException: lambda msg: HTTPException(status_code=403, detail=msg or "Not allowed"),
 }
 
 for file in _files:

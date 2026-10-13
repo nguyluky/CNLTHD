@@ -26,9 +26,5 @@ class UserNotFoundException(ServiceException):
 
 
 class NotAllowedException(ServiceException):
-    """
-    Khi người dùng không có quyền truy cập vào barber schedule.
-    admin hoặc chính barber mới có quyền truy cập.
-    """
-
+    """Exception raised when a user is not allowed to perform an action."""
     pass
