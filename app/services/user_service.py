@@ -5,11 +5,11 @@ from sqlalchemy import select
 
 from app.core.database import User, get_db
 from app.schemas.common import PasswordStr
-from app.services.share import ServiceException
+from app.core.exception import DomainException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class _UserException(ServiceException):
+class _UserException(DomainException):
     pass
 
 

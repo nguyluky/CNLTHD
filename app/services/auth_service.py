@@ -12,9 +12,9 @@ from sqlalchemy.orm import selectinload
 from app.core.config import config
 from app.core.database import SessionToken, User, get_db
 from app.core.security import hash_sha256
-from app.services.share import ServiceException, UserNotFoundException
+from app.core.exception import DomainException, UserNotFoundException
 
-class _AuthException(ServiceException):
+class _AuthException(DomainException):
     """Base class for authentication-related exceptions."""
     pass
 

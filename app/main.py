@@ -13,7 +13,7 @@ from app.core.config import config
 from app.core.database import Base
 from app.core.database import engine
 from app.routers import router, exception_handler
-from app.services.share import ServiceException
+from app.core.exception import DomainException
 
 
 @asynccontextmanager
@@ -57,7 +57,7 @@ app.add_middleware(
 app.include_router(router)
 
 app.add_exception_handler(
-    ServiceException,
+    DomainException,
     exception_handler
 )
 # app.add_exception_handler(

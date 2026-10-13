@@ -8,14 +8,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exception import NotFoundException
 from app.schemas.services import ServiceFilterParamForPrivate, ServiceFilterParamForPublic
-from app.services.share import ServiceException
+from app.core.exception import DomainException
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import math
 
 
-class _ServiveException(ServiceException):
+class _ServiveException(DomainException):
     pass
 
 class ServiceNotFoundException(_ServiveException):
