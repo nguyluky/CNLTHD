@@ -12,6 +12,7 @@ from redis_fastapi import cache, cache_evict, cache_put, default_key_builder
 
 router = APIRouter(prefix="/barbers", tags=["Barber"])
 
+
 @router.get(
     "",
     description="Get all barbers",
@@ -21,16 +22,14 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
 async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
     barber_service: BarberServiceDep,
-    ):
+):
     """
     Get all barbers.
     """
 
     items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
 
-    validated_items = [
-        BarberOut.model_validate(service) for service in items
-    ]
+    validated_items = [BarberOut.model_validate(service) for service in items]
 
     response = PageResponse[BarberOut](
         items=validated_items,
@@ -63,6 +62,7 @@ async def get_barber(
 
     return response
 
+
 @router.get(
     "/{barber_id}/available-slots",
     description="Returns the specified barber free time slots in the specified date, the client can further specify the duration of each time slot",
@@ -77,26 +77,29 @@ async def get_available_slots(
     slot_duration: int = Query(30, description="specified slot duration in minutes"),
 ):
     available_slots = []
-    
-    redis_key = f"barber:{barber_id}:available_slots:{booking_date.isoformat()}:{slot_duration}"
+
+    redis_key = (
+        f"barber:{barber_id}:available_slots:{booking_date.isoformat()}:{slot_duration}"
+    )
     cached_data = await redis.get(redis_key, eviction_group="available_slot")
     if cached_data:
         available_slots = json.loads(cached_data)
-    
+
     available_slots = await barber_service.get_available_slot_minutes(
-        barber_id=barber_id, 
-        target_date=booking_date,
-        slot_duration=slot_duration
+        barber_id=barber_id, target_date=booking_date, slot_duration=slot_duration
     )
 
     # cache into redis
-    await redis.set(redis_key, json.dumps(available_slots), ttl=300, eviction_group="available_slot")
-    
+    await redis.set(
+        redis_key, json.dumps(available_slots), ttl=300, eviction_group="available_slot"
+    )
+
     return {
         "booking_date": booking_date,
         "slot_duration_minutes": slot_duration,
-        "available_slots": available_slots
+        "available_slots": available_slots,
     }
+
 
 map_exception = {
     BarberNotFoundException: lambda e: HTTPException(
