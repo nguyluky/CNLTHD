@@ -9,12 +9,12 @@ from fastapi import Depends, HTTPException
 from redis_fastapi import CacheBackendDep
 from sqlalchemy.orm import selectinload
 
-from app.core.config import config
+from app.core.config import configEnv
 from app.core.database import SessionToken, User, get_db
 from app.core.security import hash_sha256
-from app.services.share import ServiceException, UserNotFoundException
+from app.core.exception import DomainException, UserNotFoundException
 
-class _AuthException(ServiceException):
+class _AuthException(DomainException):
     """Base class for authentication-related exceptions."""
     pass
 
@@ -122,7 +122,7 @@ class AuthService:
             session: SessionToken
         """
         
-        refresh_token_expires_delta = timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
+        refresh_token_expires_delta = timedelta(days=configEnv.REFRESH_TOKEN_EXPIRE_DAYS)
 
         refresh_token = str(uuid.uuid4())
 
@@ -148,7 +148,7 @@ class AuthService:
         self, *, user: User, session: SessionToken
     ):
         access_token_expires_delta = timedelta(
-            minutes=config.ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=configEnv.ACCESS_TOKEN_EXPIRE_MINUTES
         )
         access_token = user.create_access_token(
             expires_delta=access_token_expires_delta, sid=f"session_{session.id}"
@@ -185,7 +185,7 @@ class AuthService:
         return session
 
     async def regenerate_refresh_token(self, *, session: SessionToken):
-        refresh_token_expires_delta = timedelta(days=config.REFRESH_TOKEN_EXPIRE_DAYS)
+        refresh_token_expires_delta = timedelta(days=configEnv.REFRESH_TOKEN_EXPIRE_DAYS)
         new_refresh_token = str(uuid.uuid4())
         new_refresh_token_hash = hash_sha256(new_refresh_token)
 

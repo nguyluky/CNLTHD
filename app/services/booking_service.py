@@ -22,10 +22,10 @@ from app.core.database import BookingService as BookingServiceModel
 from app.dependencies import get_current_active_user
 from app.schemas.booking import BookingFilterParam
 
-from app.services.share import ServiceException
+from app.core.exception import DomainException
 
 
-class _BookingServiceException(ServiceException):
+class _BookingServiceException(DomainException):
     pass
 
 class BookingAlreadyFinalizedException(_BookingServiceException):

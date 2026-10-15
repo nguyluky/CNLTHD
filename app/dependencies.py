@@ -14,7 +14,7 @@ from app.core.logger import logger
 from app.core.database import User, get_db
 from app.core.security import decode_token
 from app.core.database import User, UserRole, get_db
-from app.core.config import config
+from app.core.config import configEnv
 from user_agents import parse
 from app.services.email_service import EmailServiceFactory, EmailServiceInterface, EmailService, MockEmailService
 

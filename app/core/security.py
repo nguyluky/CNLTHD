@@ -11,7 +11,7 @@ from pwdlib import PasswordHash
 import hashlib
 
 
-from app.core.config import config
+from app.core.config import configEnv
 
 hash = PasswordHash.recommended()
 
@@ -37,10 +37,10 @@ def create_access_token(data: dict, expires_delta: timedelta):
         # nếu tạo liên tiếp 2 token tùng user thì jti sẽ khác nhau, giúp tránh việc 2 token giống nhau
         "jti": str(uuid.uuid4()),
     })
-    encoded_jwt = jwt.encode(to_encode, config.SECRET_KEY, algorithm=config.ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, configEnv.SECRET_KEY, algorithm=configEnv.ALGORITHM)
     return encoded_jwt
 
 
 def decode_token(token: str):
-    payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+    payload = jwt.decode(token, configEnv.SECRET_KEY, algorithms=[configEnv.ALGORITHM])
     return payload
