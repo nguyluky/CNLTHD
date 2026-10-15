@@ -19,35 +19,35 @@ class _AuthException(DomainException):
     pass
 
 class UserExistsException(_AuthException):
-    """Khi tạo user mới, nếu email hoặc phone đã tồn tại trong database thì raise exception này."""
+    """Raise this exception if email or phone from a create user request already exists in the database."""
 
     pass
 
 class TokenNotFoundException(_AuthException):
-    """Khi xác nhận token, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
+    """Raise this exception if the token is expired or cannot be found while checking for token."""
 
     pass
 
 class InvalidCredentialsException(_AuthException):
-    """Khi đăng nhập, nếu email hoặc password không đúng thì raise exception này."""
+    """Raise this exception if email or password is invalid from a login request."""
 
     pass
 
 
 
 class RefreshTokenNotFoundException(_AuthException):
-    """Khi refresh token, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
+    """Raise this exception if the token is expired or cannot be found during token refreshing."""
 
     pass
 
 
 class TokenExpiredException(_AuthException):
-    """Khi xác nhận token, nếu token đã hết hạn thì raise exception này."""
+    """Raise this exception if the token is expired during token authentication."""
 
     pass
 
 class PasswordResetTokenNotFoundException(_AuthException):
-    """Khi reset password, nếu token không tồn tại hoặc đã hết hạn thì raise exception này."""
+    """Raise this exception if the token is expired or cannot be found during password reset."""
 
     pass
 

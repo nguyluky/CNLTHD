@@ -14,10 +14,11 @@ from app.schemas.barber import BarberFilterParam
 BUFFER_MINUTES = 10
 DEFAULT_SLOT_DURATION = 30
 
-class BarberException(DomainException):
+class _BarberException(DomainException):
     pass
 
-class BarberNotFoundException(BarberException):
+class BarberNotFoundException(_BarberException):
+    """Raise this exception if the barber in question does not exists."""
     pass
 
 class BarberService:

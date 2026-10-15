@@ -6,15 +6,22 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import time
 
+from app.core.exception import DomainException
 from app.dependencies import get_current_active_user
 from app.schemas.barber_schedule import BarberScheduleFilterParam
 from app.core.database import BarberSchedule, User, get_db
-from app.services.share import NotAllowedException, ServiceException, NotFoundException
 
 
-class _BarberScheduleException(ServiceException):
+class _BarberScheduleException(DomainException):
     pass
-    
+
+class BarberScheduleNotFoundException(_BarberScheduleException):
+    """Raise this exception if the barber schedule in question does not exists."""
+    pass
+
+class UserNotAllowedToViewBarberScheduleException(_BarberScheduleException):
+    """Raise this exception if the user is not allowed to access barber schedule."""
+    pass
 
 
 class BarberSchedulePolicy:
@@ -23,7 +30,7 @@ class BarberSchedulePolicy:
         is_admin = user.is_admin()
         is_assigned_barber = user.is_barber() and user.id == barber_id
         if not (is_admin or is_assigned_barber):
-            raise NotAllowedException("You are not allowed to perform this action")
+            raise UserNotAllowedToViewBarberScheduleException("You are not allowed to perform this action")
         
     
 
@@ -51,7 +58,7 @@ class BarberScheduleService:
         total = await self.db.scalar(count_query) or 0
 
         if total == 0:
-            raise NotFoundException("Barber Schedule Not Found")
+            raise BarberScheduleNotFoundException("Barber Schedule Not Found")
 
         offset = (page - 1) * limit
         paginated_query = (
@@ -116,7 +123,7 @@ class BarberScheduleService:
             )
         )
         if not barber_schedule:
-            raise NotFoundException("Barber schedule not found")
+            raise BarberScheduleNotFoundException("Barber schedule not found")
 
         if date_of_week is not None:
             barber_schedule.date_of_week = date_of_week
@@ -147,7 +154,7 @@ class BarberScheduleService:
             )
         )
         if not barber_schedule:
-            raise NotFoundException("Barber schedule not found")
+            raise BarberScheduleNotFoundException("Barber schedule not found")
 
         await self.db.delete(barber_schedule)
         await self.db.commit()

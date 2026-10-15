@@ -13,6 +13,7 @@ class _AdminException(DomainException):
 
 
 class UserAlreadyExistsException(_AdminException):
+    """Raise this exception if there's already a user with the same email or phone in the database."""
     pass
 
 class AdminService:

@@ -11,7 +11,6 @@ from fastapi import APIRouter, HTTPException
 from collections import deque
 
 from app.core.helper import camel_to_upper_snake_case
-from app.core.helper import get_all_subclasses
 from app.core.logger import logger
 from app.schemas.common import create_error_response
 from app.core.exception import map_exception as default_map_exception, DomainException

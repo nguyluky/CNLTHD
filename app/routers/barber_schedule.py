@@ -17,8 +17,10 @@ from app.schemas.barber_schedule import (
 from app.schemas.common import PageResponse, create_page_response
 from app.services import barber_schedule_service, barber_service
 from app.services.barber_schedule_service import (
+    BarberScheduleNotFoundException,
     BarberScheduleServiceDep,
     BarberSchedulePolicy,
+    UserNotAllowedToViewBarberScheduleException,
 )
 
 router = APIRouter(prefix="/barber_schedules", tags=["Barber Schedule"])
@@ -156,3 +158,13 @@ async def delete_barber_schedule(
     )
 
     await redis.delete_group("available_slot")
+
+map_exception = {
+    UserNotAllowedToViewBarberScheduleException: lambda e: HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=e or "You are not allowed to perform this action.",
+    ),
+    BarberScheduleNotFoundException: lambda e: HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail=e or "Barber Schedule Not Found"
+    ),
+}
