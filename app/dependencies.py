@@ -84,6 +84,8 @@ def get_email_service() -> EmailServiceInterface:
 def require_roles(*allows_roles: UserRole):
     async def check_role(current_user: User = Depends(get_current_active_user)) -> User:
         if current_user.role not in allows_roles:
+            # TODO: sửa dụng Exception chung với service
+            # từ rồi sửa để chuyển hết sang dùng Exception chung hết đã 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are unauthorized to perform this action"

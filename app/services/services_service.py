@@ -19,6 +19,7 @@ class _ServiveException(DomainException):
     pass
 
 class ServiceNotFoundException(_ServiveException):
+    """Raise this exception if the service in question does not exists."""
     pass
 
 class ServicesService:

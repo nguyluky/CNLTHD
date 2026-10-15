@@ -17,8 +17,6 @@ from app.core.database import (
     get_db,
 )
 from app.core.database import BookingService as BookingServiceModel
-
-# from app.core.exception import RequestedServiceForBookingNotFound
 from app.dependencies import get_current_active_user
 from app.schemas.booking import BookingFilterParam
 
@@ -29,23 +27,23 @@ class _BookingServiceException(DomainException):
     pass
 
 class BookingAlreadyFinalizedException(_BookingServiceException):
-    """Lỗi khi cập nhật lịch hẹn đã hoàn thành"""
+    """Raise this exception during a status update if booking status is completed."""
 
     pass
 
 
 class RequestedServiceForBookingNotFound(_BookingServiceException):
-    """Lỗi khi dịch vụ được yêu cầu để đặt lịch hẹn không tồn tại"""
+    """Raise this exception if the requested service from a create booking request does not exists."""
 
     pass
 
 class UserNotAllowedToViewBookingException(_BookingServiceException):
-    """Lỗi khi người dùng không được phép xem lịch hẹn"""
+    """Raise this exception if the user is not allowed to view booking."""
 
     pass
 
 class BookingNotFoundException(_BookingServiceException):
-    """Lỗi khi lịch hẹn không tồn tại"""
+    """Raise this exception if the booking in question does not exists."""
 
     pass
 

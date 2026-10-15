@@ -14,14 +14,17 @@ class _UserException(DomainException):
 
 
 class InvalidOldPasswordException(_UserException):
+    """Raise this exception if old password is invalid in a change password request."""
     pass
 
 
 class PhoneExistsException(_UserException):
+    """Raise this exception if the new phone number matches a phone number in the database."""
     pass
 
 
 class EmailExistsException(_UserException):
+    """Raise this exception if the new email matches an email in the database."""
     pass
 
 
