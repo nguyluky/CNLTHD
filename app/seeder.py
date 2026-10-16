@@ -14,7 +14,7 @@ from app.core.database import (
     SessionLocal,
     engine,
 )
-from app.core.config import config
+from app.core.config import configEnv
 
 
 async def reset_database():
@@ -25,7 +25,7 @@ async def reset_database():
     logger.info("Database cleared")
 
 async def seed_data():
-    logger.info(f"Seeding Database: {config.DATABASE_URL}")
+    logger.info(f"Seeding Database: {configEnv.DATABASE_URL}")
 
     await reset_database()
 

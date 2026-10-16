@@ -2,8 +2,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
-from app.core.config import config
-from app.core.database import User
+from pydantic import BaseModel
+from redis_fastapi import CacheBackendDep
+from sqlalchemy import or_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.core.config import configEnv
+from app.core.database import SessionToken, User, get_db
 from app.core.helper import camel_to_upper_snake_case
 from app.schemas.auth import (
     DevicesOut,
@@ -52,7 +58,7 @@ async def initialize_user_registration(
         phone=body.phone,
     )
 
-    confirmation_link = f"{config.BASE_URL}/auth/confirm/{token}"
+    confirmation_link = f"{configEnv.BASE_URL}/auth/confirm/{token}"
     background_tasks.add_task(
         email_service.send_confirmation_email,
         to=body.email,
@@ -251,7 +257,7 @@ async def forgot_password(
     user = await auth_service.get_user_by_email(email=email)
     token = await auth_service.generate_password_reset_token(user=user)
 
-    reset_link = f"{config.BASE_URL}/auth/reset_password/{token}"
+    reset_link = f"{configEnv.BASE_URL}/auth/reset_password/{token}"
     background_tasks.add_task(
         email_service.send_reset_password_email,
         to=email,

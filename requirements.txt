@@ -11,4 +11,5 @@ httpx
 pydantic-settings
 messagebird-sdk
 user-agents
+alembic
 nh3

@@ -5,14 +5,15 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import User, UserRole, get_db
-from app.services.share import ServiceException, UserNotFoundException
+from app.core.exception import DomainException, UserNotFoundException
 
 
-class _AdminException(ServiceException):
+class _AdminException(DomainException):
     pass
 
 
 class UserAlreadyExistsException(_AdminException):
+    """Raise this exception if there's already a user with the same email or phone in the database."""
     pass
 
 class AdminService:
