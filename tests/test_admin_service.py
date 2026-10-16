@@ -4,10 +4,6 @@ import decimal
 
 import pytest
 
-from app.core.database import Service
-from app.core.security import create_access_token
-
-
 pytestmark = pytest.mark.anyio
 
 async def test_get_service_by_id(

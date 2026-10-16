@@ -1,9 +1,5 @@
-import uuid
-from datetime import datetime, timedelta, timezone
 from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordRequestForm
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -24,7 +20,6 @@ from app.schemas.auth import (
     RegisterIn,
     RegisterOut,
 )
-from app.core.security import decode_token, hash_sha256
 from app.dependencies import EmailServiceDep, get_current_active_user
 from app.core.logger import logger
 from app.schemas.common import create_error_response
