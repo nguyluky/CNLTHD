@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   packages: write
+  pull-requests: write  # For creating/updating PR comments
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
