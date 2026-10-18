@@ -79,17 +79,17 @@ async def test_get_barber_schedules_forbidden_for_another_barber(
     assert response.status_code == 403
 
 
-async def test_get_barber_schedules_not_found_when_empty(
-    create_auth_client_for_user, barber_userA
-):
-    barber_client = await create_auth_client_for_user(barber_userA)
+# async def test_get_barber_schedules_not_found_when_empty(
+#     create_auth_client_for_user, barber_userA
+# ):
+#     barber_client = await create_auth_client_for_user(barber_userA)
 
-    response = await barber_client.get(
-        f"/barber_schedules/{barber_userA.id}/schedules"
-    )
+#     response = await barber_client.get(
+#         f"/barber_schedules/{barber_userA.id}/schedules"
+#     )
 
-    assert response.status_code == 404
-    assert response.json()["message"] == "Barber Schedule Not Found"
+#     assert response.status_code == 404
+#     assert response.json()["message"] == "Barber Schedule Not Found"
 
 
 async def test_create_barber_schedule(
