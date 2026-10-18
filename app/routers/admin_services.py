@@ -1,4 +1,5 @@
 from typing import Annotated
+from app.routers import service_logger
 from app.schemas.common import PageResponse
 from app.dependencies import require_roles
 from app.core.database import UserRole

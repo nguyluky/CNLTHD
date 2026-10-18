@@ -4,13 +4,11 @@ from typing import Annotated
 from decimal import Decimal
 
 from fastapi import Depends
-from redis_fastapi import CacheBackend
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.core.database import (
     Booking,
-    # BookingService,
     BookingStatus,
     Service,
     User,
@@ -18,8 +16,8 @@ from app.core.database import (
 )
 from app.core.database import BookingService as BookingServiceModel
 from app.dependencies import get_current_active_user
+from app.routers import service_logger
 from app.schemas.booking import BookingFilterParam
-
 from app.core.exception import DomainException
 
 
@@ -60,6 +58,10 @@ class BookingServicePolicy:
         is_assigned_barber = self.user.is_barber() and self.user.id == booking.barber_id
 
         if not is_admin and (not is_owner_customer and not is_assigned_barber):
+            service_logger.warning(
+                "Unauthorized request to booking from user",
+                extra={"user_id":self.user.id, "role": self.user.role}
+            )
             raise UserNotAllowedToViewBookingException("You do not have permission to view this booking.")
 
     def apply_user_filter(
@@ -96,6 +98,10 @@ class BookingService:
         ).first()
 
         if not booking:
+            service_logger.warning(
+                "Booking look up failed: record not found", 
+                extra={"booking_id": booking_id}
+            )
             raise BookingNotFoundException("Booking detail not found")
 
         return booking
@@ -124,8 +130,8 @@ class BookingService:
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query) or 0
 
-        if total == 0:
-            raise BookingNotFoundException("Booking not found")
+        # if total == 0:
+        #     raise BookingNotFoundException("Booking not found")
 
         offset = (page - 1) * limit
         paginated_query = (
@@ -152,6 +158,9 @@ class BookingService:
 
         services = service_result.all()
         if len(services) != len(service_ids):
+            service_logger.warning(
+                "Service for booking look up failed: One of the services does not exist"
+            )
             raise RequestedServiceForBookingNotFound(
                 "One of the services does not exist"
             )
@@ -185,12 +194,21 @@ class BookingService:
 
         await self.db.commit()
 
+        service_logger.info(
+            "Booking created successfully",
+            extra={"booking_id": booking.id}
+        )
+
         return booking
 
     async def update_booking_status(
         self, *, booking: Booking, new_status: BookingStatus
     ) -> Booking:
         if booking.status in [BookingStatus.completed, BookingStatus.cancelled]:
+            service_logger.warning(
+                "Booking update fail: Cannot update status of a completed or cancelled booking",
+                extra={"booking_id": booking.id, "status": booking.status}
+            )
             raise BookingAlreadyFinalizedException(
                 "Cannot update status of a completed or cancelled booking"
             )
@@ -198,6 +216,11 @@ class BookingService:
         booking.status = new_status
         await self.db.commit()
         await self.db.refresh(booking)
+
+        service_logger.info(
+            "Booking status updated successfully",
+            extra={"booking_id": booking.id, "new_status": booking.status}
+        )
 
         return booking
     
@@ -233,6 +256,11 @@ class BookingService:
 
         await self.db.commit()
         await self.db.refresh(booking)
+
+        service_logger.info(
+            "Booking schedule updated successfully",
+            extra={"booking_id": booking.id}
+        )
 
         return booking
         

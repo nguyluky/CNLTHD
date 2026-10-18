@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis_fastapi import FastAPIRedis
 
 from app.schemas.common import create_error_response, ErrorModel, ValidationErrorModel, create_validation_error_response
-from app.core.logger import logger
+from app.core.logger import service_logger
 from app.core.config import configEnv
 from app.core.database import Base
 from app.core.database import engine
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
-            logger.info("Database tables created successfully.")
+            service_logger.info("Database tables created successfully.")
         yield
     finally:
         await engine.dispose()
@@ -68,7 +68,7 @@ async def health():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exception: Exception):
-    logger.error(
+    service_logger.error(
         f"Unhandled Exception on {request.method} {request.url}: {exception}",
         exc_info=True,
     )

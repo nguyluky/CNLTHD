@@ -9,6 +9,7 @@ from app.core.database import BarberSchedule, Booking, BookingStatus, User, User
 
 from fastapi import Depends
 from app.core.exception import DomainException
+from app.routers import service_logger
 from app.schemas.barber import BarberFilterParam
 
 BUFFER_MINUTES = 10
@@ -43,8 +44,8 @@ class BarberService:
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query) or 0
 
-        if total == 0:
-            raise BarberNotFoundException("Barber not found")
+        # if total == 0:
+        #     raise BarberNotFoundException("Barber not found")
 
         # pagination
         offset = (filter.page - 1) * filter.limit
@@ -64,9 +65,15 @@ class BarberService:
             self,
             barber_id: int,
     ):
-        barber = (await self.db.scalar(select(User).where(User.id == barber_id, User.role == UserRole.barber)))
+        barber = await self.db.scalar(
+            select(User).where(User.id == barber_id, User.role == UserRole.barber)
+        )
 
         if not barber:
+            service_logger.warning(
+                "Barber look up failed: barber not found", 
+                extra={"barber_id": barber_id}
+            )
             raise BarberNotFoundException("Barber not found")
         return barber
 
@@ -87,6 +94,10 @@ class BarberService:
         )).all()
 
         if not schedules:
+            service_logger.warning(
+                "Schedule records look up for barber's available slot failed: no record found", 
+                extra={"barber_id": barber_id}
+            )
             return []
 
         existing_bookings = (await self.db.scalars(
