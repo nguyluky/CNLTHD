@@ -1,15 +1,9 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import User, get_db
-from app.schemas.common import create_error_response
-from app.core.helper import camel_to_upper_snake_case
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_active_admin
 from app.schemas.common import PageResponse, create_page_response
 from app.schemas.user import UserOut
+from app.core.logger import logger
 from app.schemas.admin import *
 from app.services.admin_service import *
 

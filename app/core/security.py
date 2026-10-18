@@ -9,6 +9,7 @@ import uuid
 import jwt
 from pwdlib import PasswordHash
 import hashlib
+from html import escape
 from nh3 import clean
 
 
@@ -50,9 +51,8 @@ def decode_token(token: str):
 
 def sanitize_plain_text(v):
     if isinstance(v, str):
-        return clean(v, tags=set()).strip()
+        return escape(v).strip()
     return v
-
 
 def sanitize_rich_text(v):
     if isinstance(v, str):
