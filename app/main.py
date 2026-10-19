@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from redis_fastapi import FastAPIRedis
 
+from app.core.middleware import AccessLoggingMiddleware
 from app.schemas.common import create_error_response, ErrorModel, ValidationErrorModel, create_validation_error_response
 from app.core.logger import service_logger
 from app.core.config import configEnv
@@ -53,6 +54,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AccessLoggingMiddleware)
 
 app.include_router(router)
 

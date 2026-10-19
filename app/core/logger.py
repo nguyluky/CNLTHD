@@ -3,6 +3,7 @@ import datetime
 import json
 import logging
 import logging.config
+from logging.handlers import RotatingFileHandler
 
 from app.core.config import configEnv
 
@@ -46,21 +47,28 @@ class ColorFormatter(logging.Formatter):
                 record.levelname = original_levelname
 
 # create format that similar to the default of fastapi logger
-
 # logger config
 
 if configEnv.ENV == "production":
+    json_formatter = JSONFormatter()
+    
+    # Console handler
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(json_formatter)
+    
+    # File handler (Max 10MB per file, keeps last 5 backup files)
+    file_handler = RotatingFileHandler("app.log", maxBytes=10*1024*1024, backupCount=5, encoding="utf-8")
+    file_handler.setFormatter(json_formatter)
+
     service_logger = logging.getLogger(configEnv.APP_NAME)
-    service_handler = logging.StreamHandler()
-    service_handler.setFormatter(JSONFormatter())
-    service_logger.addHandler(service_handler)
+    service_logger.addHandler(stream_handler)
+    service_logger.addHandler(file_handler)
     service_logger.setLevel(logging.INFO)
     service_logger.propagate = False
 
-    http_logger = logging.getLogger("uvicorn.access")
-    http_handler = logging.StreamHandler()
-    http_handler.setFormatter(JSONFormatter())
-    http_logger.addHandler(http_handler)
+    http_logger = logging.getLogger("app.access")
+    http_logger.addHandler(stream_handler)
+    http_logger.addHandler(file_handler)
     http_logger.setLevel(logging.INFO)
     http_logger.propagate = False
 else:
@@ -72,50 +80,48 @@ else:
             "standard": {
                 "()": ColorFormatter,
                 "format": (
-                    "%(asctime)s "
-                    "[%(levelname)s] "
-                    "%(name)s: %(message)s"
+                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
                 ),
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
-            "access": {
-                "()": ColorFormatter,
-                "format": "%(asctime)s [HTTP] %(name)s: %(message)s",
+            "file_formatter": {
+                "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
             },
         },
         "handlers": {
-            "service_console": {
+            "standard_console": {
                 "class": "logging.StreamHandler",
                 "formatter": "standard",
                 "stream": "ext://sys.stdout",
             },
-            "http_console": {
-                "class": "logging.StreamHandler",
-                "formatter": "access",
-                "stream": "ext://sys.stdout",
+            "file": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "filename": "app.log",
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 3,
+                "formatter": "file_formatter",
+                "encoding": "utf-8",
             },
         },
         "loggers": {
             "": {
-                "handlers": ["service_console"],
+                "handlers": ["standard_console", "file"],
                 "level": "INFO",
                 "propagate": False,
             },
             configEnv.APP_NAME: {
-                "handlers": ["service_console"],
+                "handlers": ["standard_console", "file"],
                 "level": "INFO",
                 "propagate": False,
             },
-            # Dedicated HTTP Access Logger
-            "uvicorn.access": {
-                "handlers": ["http_console"],
+            "app.access": {
+                "handlers": ["standard_console", "file"],
                 "level": "INFO",
                 "propagate": False,
             },
-            # Uvicorn internal startup/error logs
             "uvicorn.error": {
-                "handlers": ["service_console"],
+                "handlers": ["standard_console", "file"],
                 "level": "INFO",
                 "propagate": False,
             },
@@ -125,4 +131,3 @@ else:
     logging.config.dictConfig(LOGGING_CONFIG)
 
     service_logger = logging.getLogger(configEnv.APP_NAME)
-    http_logger = logging.getLogger("uvicorn.access")
