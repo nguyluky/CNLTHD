@@ -5,23 +5,26 @@ from sqlalchemy import select
 
 from app.core.database import User, get_db
 from app.schemas.common import PasswordStr
-from app.services.share import ServiceException
+from app.core.exception import DomainException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-class _UserException(ServiceException):
+class _UserException(DomainException):
     pass
 
 
 class InvalidOldPasswordException(_UserException):
+    """Raise this exception if old password is invalid in a change password request."""
     pass
 
 
 class PhoneExistsException(_UserException):
+    """Raise this exception if the new phone number matches a phone number in the database."""
     pass
 
 
 class EmailExistsException(_UserException):
+    """Raise this exception if the new email matches an email in the database."""
     pass
 
 

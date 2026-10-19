@@ -14,7 +14,7 @@ from app.core.logger import logger
 from app.core.database import User, get_db
 from app.core.security import decode_token
 from app.core.database import User, UserRole, get_db
-from app.core.config import config
+from app.core.config import configEnv
 from user_agents import parse
 from app.services.email_service import EmailServiceFactory, EmailServiceInterface, EmailService, MockEmailService
 
@@ -84,6 +84,8 @@ def get_email_service() -> EmailServiceInterface:
 def require_roles(*allows_roles: UserRole):
     async def check_role(current_user: User = Depends(get_current_active_user)) -> User:
         if current_user.role not in allows_roles:
+            # TODO: sửa dụng Exception chung với service
+            # từ rồi sửa để chuyển hết sang dùng Exception chung hết đã 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are unauthorized to perform this action"

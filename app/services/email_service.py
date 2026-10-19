@@ -1,6 +1,6 @@
 from bird import APIError, AsyncBird
 from app.core.logger import logger
-from app.core.config import config
+from app.core.config import configEnv
 
 
 # email service abstrac class
@@ -112,10 +112,10 @@ class EmailService(EmailServiceInterface):
 class EmailServiceFactory:
     @staticmethod
     def create_email_service() -> EmailServiceInterface:
-        if config.BIRD_API_KEY is None:
+        if configEnv.BIRD_API_KEY is None:
             return MockEmailService()
         else:
-            return EmailService.get_instance(api_key=config.BIRD_API_KEY)
+            return EmailService.get_instance(api_key=configEnv.BIRD_API_KEY)
 
 class MockEmailService(EmailServiceInterface):
     async def send_email(self, to: str, subject: str, html: str) -> dict | None:

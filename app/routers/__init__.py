@@ -10,20 +10,17 @@ from typing import Callable
 from fastapi import APIRouter, HTTPException
 from collections import deque
 
+from app.core.helper import camel_to_upper_snake_case
 from app.core.logger import logger
 from app.schemas.common import create_error_response
-from app.services.share import NotAllowedException, NotFoundException, ServiceException, UserNotFoundException, camel_to_upper_snake_case
+from app.core.exception import map_exception as default_map_exception, DomainException
 
 # get all files in the current directory
 _files = os.listdir(os.path.dirname(__file__))
 
 _routers: list[APIRouter] = []
 # map exception to function that return http response
-map_exception: dict[type[Exception], Callable] = {
-    NotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "Resource not found"),
-    UserNotFoundException: lambda msg: HTTPException(status_code=404, detail=msg or "User not found"),
-    NotAllowedException: lambda msg: HTTPException(status_code=403, detail=msg or "Not allowed"),
-}
+map_exception: dict[type[Exception], Callable] = default_map_exception.copy()
 
 for file in _files:
     if file.endswith(".py") and file != "__init__.py" and not file.startswith("_"):
@@ -59,7 +56,7 @@ def _get_all_subclasses(cls):
             # Add this subclass's children to the queue
             queue.extend(subclass.__subclasses__())
 
-_all_exceptions = list(_get_all_subclasses(ServiceException))
+_all_exceptions = list(_get_all_subclasses(DomainException))
 _existing_exceptions = [exc for exc in _all_exceptions if any(exc.__name__ == existing_exc.__name__ for existing_exc in map_exception)]
 
 # kiểm tra xem có tên exception nào trùng nhau không

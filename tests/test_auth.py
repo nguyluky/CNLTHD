@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.core.database import SessionToken, User
-from app.core.config import config
+from app.core.config import configEnv
 from app.core.security import decode_token, hash_sha256
 from app.schemas.auth import LoginOut
 
@@ -36,7 +36,7 @@ async def test_register_user(
     assert str(UUID(token)) == token
     email_service.send_confirmation_email.assert_awaited_once_with(
         to=customer_dataA["email"],
-        confirmation_link=f"{config.BASE_URL}/auth/confirm/{token}",
+        confirmation_link=f"{configEnv.BASE_URL}/auth/confirm/{token}",
     )
     assert await cache.get(f"register:{token}", eviction_group="register") == customer_dataA
     keys = await redis_client.keys(f"*register:{token}")
@@ -422,7 +422,7 @@ async def test_forgot_password(
     assert str(UUID(token)) == token
     email_service.send_reset_password_email.assert_awaited_once_with(
         to=registered_user["email"],
-        reset_link=f"{config.BASE_URL}/auth/reset_password/{token}",
+        reset_link=f"{configEnv.BASE_URL}/auth/reset_password/{token}",
     )
 
     async with session_factory() as db:
