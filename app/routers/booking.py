@@ -23,7 +23,10 @@ from app.services.booking_service import (
     BookingServiceDep,
     BookingServicePolicyDep,
     BookingAlreadyFinalizedException,
-    RequestedServiceForBookingNotFound,
+    RequestedBarberDoesNotWorkInRequestedBookingDateException,
+    RequestedBookingTimeIsNotWithinScheduleException,
+    RequestedBookingTimeOverlappedWithExistedBookingException,
+    RequestedServiceForBookingNotFoundException,
     UserNotAllowedToViewBookingException,
     BookingNotFoundException,
 )
@@ -202,7 +205,7 @@ async def update_booking_schedule(
 
 
 map_exception = {
-    RequestedServiceForBookingNotFound: lambda e: HTTPException(
+    RequestedServiceForBookingNotFoundException: lambda e: HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=e or "Requested service for booking not found",
     ),
@@ -216,5 +219,17 @@ map_exception = {
     ),
     BookingNotFoundException: lambda e: HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail=e or "Booking not found"
+    ),
+    RequestedBarberDoesNotWorkInRequestedBookingDateException: lambda e: HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, 
+        detail=e or "The requested barber does not work on the requested booking date"
+    ),
+    RequestedBookingTimeIsNotWithinScheduleException: lambda e: HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, 
+        detail=e or "The requested booking time is not within schedule"
+    ),
+    RequestedBookingTimeOverlappedWithExistedBookingException: lambda e: HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, 
+        detail=e or "The requested booking time is overlapping with existed bookings"
     ),
 }

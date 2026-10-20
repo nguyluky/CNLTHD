@@ -262,6 +262,7 @@ async def admin_user(session_factory, admin_data):
 async def sample_services(session_factory):
     services = [
         Service(
+            id=1,
             name="Cắt tóc nam",
             description="Cắt tóc nam cơ bản",
             price=Decimal("100000"),
@@ -269,6 +270,7 @@ async def sample_services(session_factory):
             is_active=True,
         ),
         Service(
+            id=2,
             name="Cắt tóc nữ",
             description="Cắt tóc nữ cơ bản",
             price=Decimal("120000"),
@@ -276,6 +278,7 @@ async def sample_services(session_factory):
             is_active=True,
         ),
         Service(
+            id=3,
             name="Cắt tóc trẻ em",
             description=None,
             price=Decimal("80000"),
