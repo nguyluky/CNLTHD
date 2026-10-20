@@ -16,9 +16,11 @@ from app.core.database import (
 )
 from app.core.database import BookingService as BookingServiceModel
 from app.dependencies import get_current_active_user
+from app.routers import barber
 from app.routers import service_logger
 from app.schemas.booking import BookingFilterParam
 from app.core.exception import DomainException
+from app.seeder import BarberSchedule
 
 
 class _BookingServiceException(DomainException):
@@ -30,7 +32,7 @@ class BookingAlreadyFinalizedException(_BookingServiceException):
     pass
 
 
-class RequestedServiceForBookingNotFound(_BookingServiceException):
+class RequestedServiceForBookingNotFoundException(_BookingServiceException):
     """Raise this exception if the requested service from a create booking request does not exists."""
 
     pass
@@ -43,6 +45,21 @@ class UserNotAllowedToViewBookingException(_BookingServiceException):
 class BookingNotFoundException(_BookingServiceException):
     """Raise this exception if the booking in question does not exists."""
 
+    pass
+
+class RequestedBarberDoesNotWorkInRequestedBookingDateException(_BookingServiceException):
+    """Raise this exception if the requested barber does not have a schedule on the requested booking date."""
+
+    pass
+
+class RequestedBookingTimeIsNotWithinScheduleException(_BookingServiceException):
+    """Raise this exception if the requested booking time is not within the requested barber's schedule"""
+
+    pass
+
+class RequestedBookingTimeOverlappedWithExistedBookingException(_BookingServiceException):
+    """Raise this exception if the requested booking time overlapped with the requested barber assigned bookings"""
+    
     pass
 
 
@@ -161,7 +178,7 @@ class BookingService:
             service_logger.warning(
                 "Service for booking look up failed: One of the services does not exist"
             )
-            raise RequestedServiceForBookingNotFound(
+            raise RequestedServiceForBookingNotFoundException(
                 "One of the services does not exist"
             )
 
@@ -171,6 +188,33 @@ class BookingService:
         start_dt = datetime.combine(booking_date, start_time)
         end_dt = start_dt + timedelta(minutes=total_duration)
         end_time = end_dt.time()
+
+        try:
+            await self.check_for_valid_booking_date(
+                barber_id=barber_id, 
+                booking_date=booking_date,
+            )
+
+            await self.check_for_within_schedule(
+                barber_id=barber_id, 
+                booking_date=booking_date, 
+                start_time=start_time, 
+                end_time=end_time
+            )
+
+            await self.check_for_booking_overlapping(
+                barber_id=barber_id, 
+                booking_date=booking_date, 
+                start_time=start_time, 
+                end_time=end_time
+            )
+        except RequestedBarberDoesNotWorkInRequestedBookingDateException as e:
+            raise e
+        except RequestedBookingTimeIsNotWithinScheduleException as e:
+            raise e
+        except RequestedBookingTimeOverlappedWithExistedBookingException as e:
+            raise e
+
 
         booking = Booking()
         booking.customer_id = user_id
@@ -226,7 +270,8 @@ class BookingService:
     
     async def update_booking_schedule(
         self, *, booking: Booking, booking_date: date | None = None,
-    start_time: time | None = None):
+        start_time: time | None = None
+    ):
         booking_services = (
             await self.db.scalars(
                 select(BookingServiceModel).where(
@@ -244,12 +289,39 @@ class BookingService:
                 total_duration += service.duration_minutes
 
         if booking_date:
+            try:
+                await self.check_for_valid_booking_date(
+                    booking_date=booking_date,
+                    barber_id=booking.barber_id
+                )
+            except RequestedBarberDoesNotWorkInRequestedBookingDateException as e:
+                raise e
+            
             booking.booking_date = booking_date
 
         if start_time:
             start_dt = datetime.combine(booking.booking_date, start_time)
             end_dt = start_dt + timedelta(minutes=total_duration)
             end_time = end_dt.time()
+
+            try: 
+                await self.check_for_within_schedule(
+                    barber_id=booking.barber_id, 
+                    booking_date=booking.booking_date, 
+                    start_time=start_time, 
+                    end_time=end_time
+                )
+
+                await self.check_for_booking_overlapping(
+                    barber_id=booking.barber_id, 
+                    booking_date=booking.booking_date, 
+                    start_time=start_time, 
+                    end_time=end_time
+                )
+            except RequestedBookingTimeIsNotWithinScheduleException as e:
+                raise e
+            except RequestedBookingTimeOverlappedWithExistedBookingException as e:
+                raise e 
 
             booking.start_time = start_time
             booking.end_time = end_time
@@ -263,6 +335,60 @@ class BookingService:
         )
 
         return booking
+
+    async def check_for_valid_booking_date(self, booking_date: date, barber_id: int):
+        barber_schedule = await self.db.scalar(
+            select(BarberSchedule)
+            .where(
+                BarberSchedule.barber_id == barber_id,
+                BarberSchedule.date_of_week == booking_date.weekday()
+            )
+        )
+
+        if not barber_schedule:
+            raise RequestedBarberDoesNotWorkInRequestedBookingDateException(
+                "The requested barber does not work on the requested booking date"
+            )
+
+        return barber_schedule
+
+    async def check_for_within_schedule(self, booking_date: date, barber_id: int, start_time: time, end_time: time):
+        barber_schedule = await self.db.scalar(
+            select(BarberSchedule)
+            .where(
+                BarberSchedule.barber_id == barber_id,
+                BarberSchedule.date_of_week == booking_date.weekday()
+            )
+        )
+
+        if barber_schedule is not None:
+            schedule_start = barber_schedule.start_time
+            schedule_end = barber_schedule.end_time
+            is_within_schedule = schedule_start < start_time and end_time < schedule_end
+            if not is_within_schedule:
+                raise RequestedBookingTimeIsNotWithinScheduleException(
+                    "The requested booking time is not within schedule"
+                )
+
+    async def check_for_booking_overlapping(self, booking_date: date, barber_id: int, start_time: time, end_time: time):
+        existed_bookings = (await self.db.scalars(
+            select(Booking)
+            .where(
+                Booking.barber_id == barber_id,
+                Booking.booking_date == booking_date
+            )
+        )).all()
+
+        if existed_bookings is not None or len(existed_bookings) > 0:
+            is_overlapping = any(
+                max(start_time, b.start_time) < min(end_time, b.end_time)
+                for b in existed_bookings
+            )
+
+            if is_overlapping:
+                raise RequestedBookingTimeOverlappedWithExistedBookingException(
+                    "The requested booking time is overlapping with existed bookings"
+                )
         
 
 async def get_booking_service(db: AsyncSession = Depends(get_db)):
