@@ -6,14 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.schemas.services import ServiceCreateIn, ServiceFilterParamForPrivate, ServiceOutForPrivate, ServiceUpdateIn
 from app.services.services_service import *
 
-router = APIRouter(prefix="/admin/services", 
-                   tags=["Services"],
-                   dependencies=[Depends(require_roles(UserRole.admin))],
-                   )
+router = APIRouter(
+    prefix="/admin/services", 
+    tags=["Services"],
+    dependencies=[Depends(require_roles(UserRole.admin))],
+)
 
 @router.get(
     "",
-    description="Get all services for admin",
+    summary="Get all services for admin,",
     response_model=PageResponse[ServiceOutForPrivate],
     status_code=status.HTTP_200_OK,
 )
@@ -21,9 +22,6 @@ async def get_services(
     filter: Annotated[ServiceFilterParamForPrivate, Query()],
     services_service: ServicesServiceDep
     ):
-    """
-    Get all services for admin.
-    """
     items, total, pages = await services_service.get_filtered_services_for_private(filter=filter)
 
     validated_items = [
@@ -40,7 +38,7 @@ async def get_services(
 
 @router.get(
     "/{service_id}",
-    description="Get a service by ID for admin",
+    summary="Get a service by ID for admin.",
     response_model=ServiceOutForPrivate,
     status_code=status.HTTP_200_OK,
 )
@@ -48,16 +46,13 @@ async def get_service_by_id(
     service_id: int, 
     services_service: ServicesServiceDep 
     ):
-    """
-    Get a service by ID for admin.
-    """
     service = await services_service.get_service_by_id(service_id)
     
     return service
 
 @router.post(
     "",
-    description="Create a new service",
+    summary="Create a new service.",
     response_model=ServiceOutForPrivate,
     status_code=status.HTTP_201_CREATED,
 )
@@ -67,6 +62,10 @@ async def create_service(
 ):
     """
     Create a new service.
+    - **name**: new service name
+    - **description**: new service description
+    - **price**: new service price
+    - **duration_minutes**: new service duration in minutes
     """
     new_data = body.model_dump()
     service = await services_service.create_service(body=new_data)
@@ -75,7 +74,7 @@ async def create_service(
 
 @router.patch(
     "/{service_id}",
-    description="Update a service",
+    summary="Update a service.",
     response_model=ServiceOutForPrivate,
     status_code=status.HTTP_200_OK,
 )
@@ -85,7 +84,12 @@ async def update_service(
     services_service: ServicesServiceDep
 ):
     """
-    Update a service.
+    Update a specified service.
+    - **name**: Optional new name
+    - **description**: Optional new description
+    - **price**: Optional new price
+    - **duration_minutes**: Optional new duration in minutes
+    - **is_active**: Optional should the service be available or not
     """
     new_data = body.model_dump(exclude_unset=True)
 

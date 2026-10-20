@@ -16,7 +16,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get(
     "/me",
-    description="Returns the currently active user's information",
+    summary="Returns the currently active user's information.",
     response_model=UserOut,
     status_code=status.HTTP_200_OK,
 )
@@ -29,7 +29,7 @@ async def get_current_user(
 
 @router.put(
     "/me/password",
-    description="Changes the current user's password",
+    summary="Changes the current user's password.",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={400: {"description": "Invalid old password"}},
 )
@@ -52,7 +52,7 @@ async def update_current_user_password(
 
 @router.patch(
     "/me",
-    description="Changes the current user's profile",
+    summary="Changes the current user's profile.",
     response_model=UserOut,
     status_code=status.HTTP_200_OK,
 )

@@ -36,6 +36,10 @@ origins = [
 app = FastAPI(
     title=configEnv.APP_NAME,
     version="1.0.0",
+    description="""
+    CNLTHD is a backend API for a hair salon's service management and scheduling system. 
+    The system enables customers to search for services, select barbers, and book appointments; it also helps barbers manage their work schedules and allows administrators to manage users, services, and appointments.
+    """,
     lifespan=lifespan,
     responses={
         500: {"model": ErrorModel, "description": "Internal Server Error"},
