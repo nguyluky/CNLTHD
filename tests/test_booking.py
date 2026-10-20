@@ -3,22 +3,26 @@ import pytest
 from sqlalchemy import select
 from app.core.database import Booking, BookingService, BookingStatus, Service
 from app.services import booking_service
+from tests.conftest import admin_user, barber_userA, customer_userA
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def booking_data():
+def booking_data(barber_userA):
     return {
-        "barber_id": 1,
+        "barber_id": barber_userA.id,
         "booking_date": str(date.today() + timedelta(days=1)),
         "start_time": "14:00:00",
         "service_ids": [1],
     }
 
-
 async def test_create_booking_success(
-    create_auth_client_for_user, customer_userA, sample_services, booking_data
+    create_auth_client_for_user, 
+    customer_userA, 
+    sample_services, 
+    booking_data, 
+    sample_barber_schedules
 ):
     customer_client = await create_auth_client_for_user(customer_userA)
     response = await customer_client.post("/bookings", json=booking_data)
@@ -29,29 +33,75 @@ async def test_create_booking_success(
     assert data["end_time"] == "14:30:00"
 
 
-async def test_create_booking_fail_with_bad_request(
-    create_auth_client_for_user, customer_userA, sample_services
+async def test_create_booking_fail_with_non_existence_service(
+    create_auth_client_for_user, 
+    customer_userA, 
+    sample_services, 
+    barber_userA, 
+    sample_barber_schedules
 ):
     payload = {
-        "barber_id": 1,
+        "barber_id": barber_userA.id,
         "booking_date": str(date.today() + timedelta(days=1)),
         "start_time": "14:00:00",
-        "service_ids": [0],
+        "service_ids": [99], # service doesn't exists
     }
     customer_client = await create_auth_client_for_user(customer_userA)
     response = await customer_client.post("/bookings", json=payload)
     assert response.status_code == 400
+    data = response.json()
+    assert data["error_code"] == "REQUESTED_SERVICE_FOR_BOOKING_NOT_FOUND_EXCEPTION"
+
+async def test_create_booking_fail_with_booking_overlap(
+    create_auth_client_for_user, 
+    customer_userA, 
+    sample_services, 
+    barber_userA, 
+    sample_barber_schedules,
+    sample_bookings
+):
+    payload = {
+        "barber_id": barber_userA.id,
+        "booking_date": str(date.today()),
+        "start_time": "09:50:00", #overlapped with barberA today's booking time
+        "service_ids": [1],
+    }
+    customer_client = await create_auth_client_for_user(customer_userA)
+    response = await customer_client.post("/bookings", json=payload)
+    assert response.status_code == 400
+    data = response.json()
+    assert data["error_code"] == "REQUESTED_BOOKING_TIME_OVERLAPPED_WITH_EXISTED_BOOKING_EXCEPTION"
+
+
+async def test_create_booking_fail_with_not_within_schedule(
+    create_auth_client_for_user, 
+    customer_userA, 
+    sample_services, 
+    barber_userA, 
+    sample_barber_schedules
+):
+    payload = {
+        "barber_id": barber_userA.id,
+        "booking_date": str(date.today() + timedelta(days=1)),
+        "start_time": "19:00:00", # outside of barberA schedule
+        "service_ids": [1], 
+    }
+    customer_client = await create_auth_client_for_user(customer_userA)
+    response = await customer_client.post("/bookings", json=payload)
+    assert response.status_code == 400
+    data = response.json()
+    assert data["error_code"] == "REQUESTED_BOOKING_TIME_IS_NOT_WITHIN_SCHEDULE_EXCEPTION"
 
 
 async def test_create_booking_fail_with_forbidden(
-    create_auth_client_for_user, admin_user, sample_services, booking_data
+    create_auth_client_for_user, admin_user, booking_data
 ):
     admin_client = await create_auth_client_for_user(admin_user)
     response = await admin_client.post("/bookings", json=booking_data)
     assert response.status_code == 403
 
 
-async def test_get_bookings_with_customer(
+async def test_get_bookings_success_customer(
     create_auth_client_for_user, customer_userA, sample_bookings
 ):
     customer_client = await create_auth_client_for_user(customer_userA)
@@ -62,7 +112,7 @@ async def test_get_bookings_with_customer(
     assert data["items"][0]["customer_id"] == customer_userA.id
 
 
-async def test_get_bookings_with_barber(
+async def test_get_bookings_success_barber(
     create_auth_client_for_user, barber_userA, sample_bookings
 ):
     barber_client = await create_auth_client_for_user(barber_userA)
@@ -73,7 +123,7 @@ async def test_get_bookings_with_barber(
     assert data["items"][0]["barber_id"] == barber_userA.id
 
 
-async def test_get_bookings_with_admin(
+async def test_get_bookings_success_admin(
     create_auth_client_for_user, admin_user, sample_bookings
 ):
     admin_client = await create_auth_client_for_user(admin_user)
@@ -82,17 +132,60 @@ async def test_get_bookings_with_admin(
     data = response.json()
     assert data["total"] == len(sample_bookings)
 
+async def test_get_bookings_fail_with_empty(
+    create_auth_client_for_user, admin_user
+):
+    admin_client = await create_auth_client_for_user(admin_user)
+    response = await admin_client.get("/bookings?page=1&limit=10")
+    assert response.status_code == 404
 
-async def test_get_booking_detail_with_owner_customer(
-    create_auth_client_for_user, session_factory, sample_bookings, customer_userA
+
+async def test_get_booking_detail_success_customer(
+    create_auth_client_for_user, sample_bookings, customer_userA
 ):
     booking = sample_bookings[0]
+    client = await create_auth_client_for_user(customer_userA)
+    response = await client.get(f"/bookings/{booking.id}")
+    assert response.status_code == 200
 
+async def test_get_booking_detail_success_barber(
+    create_auth_client_for_user, sample_bookings, barber_userA
+):
+    booking = sample_bookings[0]
+    client = await create_auth_client_for_user(barber_userA)
+    response = await client.get(f"/bookings/{booking.id}")
+    assert response.status_code == 200
+
+async def test_get_booking_detail_success_admin(
+    create_auth_client_for_user, sample_bookings, admin_user
+):
+    booking = sample_bookings[0]
+    client = await create_auth_client_for_user(admin_user)
+    response = await client.get(f"/bookings/{booking.id}")
+    assert response.status_code == 200
+
+async def test_get_booking_detail_fail_not_found(
+    create_auth_client_for_user, customer_userA
+):
+    customer_client = await create_auth_client_for_user(customer_userA)
+    response = await customer_client.get(f"/bookings/{999}")
+    assert response.status_code == 404
+
+async def test_get_booking_detail_fail_customer(
+    create_auth_client_for_user, customer_userA, sample_bookings
+):
+    booking = sample_bookings[1]
     customer_client = await create_auth_client_for_user(customer_userA)
     response = await customer_client.get(f"/bookings/{booking.id}")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["customer_id"] == customer_userA.id
+    assert response.status_code == 403
+
+async def test_get_booking_detail_fail_barber(
+    create_auth_client_for_user, barber_userA, sample_bookings
+):
+    booking = sample_bookings[1]
+    customer_client = await create_auth_client_for_user(barber_userA)
+    response = await customer_client.get(f"/bookings/{booking.id}")
+    assert response.status_code == 403
 
 
 async def test_cancel_booking_with_owner_customer(
@@ -114,7 +207,7 @@ async def test_cancel_booking_with_owner_customer(
         assert result.status == BookingStatus.cancelled
 
 
-async def test_cancel_booking_fail_bad_request(
+async def test_cancel_booking_fail_finalized(
     create_auth_client_for_user, customer_userB, sample_bookings, session_factory
 ):
     booking = sample_bookings[2]
