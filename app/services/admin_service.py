@@ -73,7 +73,7 @@ class AdminService:
             select(User).where(or_(User.email == email, User.phone == phone))
         )
         if existing_user:
-            service_logger.warning(
+            service_logger.error(
                 "Failed to create user: Email or phone already exists", 
                 extra={"email": email, "phone": phone}
             )
@@ -100,7 +100,7 @@ class AdminService:
     ):
         user = await self.db.scalar(select(User).where(User.id == user_id))
         if not user:
-            service_logger.warning(
+            service_logger.error(
                 "User lookup failed: Record not found", 
                 extra={"user_id": user_id}
             )
@@ -113,7 +113,7 @@ class AdminService:
             )
         )
         if existing_user:
-            service_logger.warning(
+            service_logger.error(
                 "Failed to update user's profile: Email or phone already exists", 
                 extra={"email": email, "phone": phone}
             )

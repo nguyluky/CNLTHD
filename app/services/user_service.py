@@ -38,7 +38,7 @@ class UserService:
     ):
         # verify password
         if not current_user.verify_password(old_password):
-            service_logger.warning(
+            service_logger.error(
                 "User password update failed: Old password is invalid",
                 extra={"user_id": current_user.id}
             )
@@ -67,7 +67,7 @@ class UserService:
             )
 
             if phone_exists:
-                service_logger.warning(
+                service_logger.error(
                     "User profile update failed: Phone number already exists",
                     extra={"user_id": current_user.id, "phone": update_data["phone"]}
                 )
@@ -83,7 +83,7 @@ class UserService:
             )
 
             if email_exists:
-                service_logger.warning(
+                service_logger.error(
                     "User profile update failed: Email already exists",
                     extra={"user_id": current_user.id, "email": update_data["email"]}
                 )

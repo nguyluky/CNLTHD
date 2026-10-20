@@ -57,9 +57,8 @@ class BarberService:
 
         result = await self.db.scalars(paginated_query)
         items = result.all()
-        pages = math.ceil(total / filter.limit)
 
-        return items, total, pages
+        return items, total
 
     async def get_barber_by_id(
             self,
@@ -70,7 +69,7 @@ class BarberService:
         )
 
         if not barber:
-            service_logger.warning(
+            service_logger.error(
                 "Barber look up failed: barber not found", 
                 extra={"barber_id": barber_id}
             )
@@ -94,7 +93,7 @@ class BarberService:
         )).all()
 
         if not schedules:
-            service_logger.warning(
+            service_logger.error(
                 "Schedule records look up for barber's available slot failed: no record found", 
                 extra={"barber_id": barber_id}
             )

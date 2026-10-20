@@ -1,6 +1,6 @@
 from typing import Annotated
 from app.routers import service_logger
-from app.schemas.common import PageResponse
+from app.schemas.common import PageResponse, create_page_response
 from app.dependencies import require_roles
 from app.core.database import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,18 +25,15 @@ async def get_services(
     """
     Get all services for admin.
     """
-    items, total, pages = await services_service.get_filtered_services_for_private(filter=filter)
+    items, total= await services_service.get_filtered_services_for_private(filter=filter)
 
-    validated_items = [
-        ServiceOutForPrivate.model_validate(service, from_attributes=True) for service in items
-    ]
+    validated_items = [ServiceOutForPrivate.model_validate(service, from_attributes=True) for service in items]
 
-    return PageResponse[ServiceOutForPrivate](
+    return create_page_response(
         items=validated_items,
         total=total,
         page=filter.page,
         size=filter.limit,
-        pages=pages,
     )
 
 @router.get(

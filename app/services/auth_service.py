@@ -65,7 +65,7 @@ class AuthService:
         )
 
         if existing_user.scalar_one_or_none():
-            service_logger.warning(
+            service_logger.error(
                 "Failed to register new user: Email or phone already exists", 
                 extra={"email": email, "phone": phone}
             )
@@ -93,7 +93,7 @@ class AuthService:
         user_data = await self.redis.get(redis_key, eviction_group="register")
 
         if not user_data:
-            service_logger.warning(
+            service_logger.error(
                 "Failed to retrieve confirmation token from redis: Confirmation token not found or expired."
             )
             raise TokenNotFoundException("Token not found or expired.")
@@ -125,7 +125,7 @@ class AuthService:
         user = user.scalar_one_or_none()
 
         if not user or not user.verify_password(password):
-            service_logger.warning(
+            service_logger.error(
                 "Failed login attempt: user not found",
                 extra={"email": email}
             )
@@ -202,7 +202,7 @@ class AuthService:
         session = session.scalar_one_or_none()
 
         if not session:
-            service_logger.warning(
+            service_logger.error(
                 "Session's refresh token not found or expired"
             )
             raise RefreshTokenNotFoundException(
@@ -210,7 +210,7 @@ class AuthService:
             )
 
         if session.revoked_at is not None:
-            service_logger.warning(
+            service_logger.error(
                 "Session's refresh token has been revoked",
                 extra={"session_id": session.id}
             )
@@ -219,7 +219,7 @@ class AuthService:
             )
         
         if session.expired_at < datetime.now():
-            service_logger.warning(
+            service_logger.error(
                 "Session's refresh token has expired",
                 extra={"session_id": session.id}
             )
@@ -296,7 +296,7 @@ class AuthService:
     async def get_user_by_email(self, *, email: str):
         user = await self.db.scalar(select(User).where(User.email == email))
         if not user:
-            service_logger.warning(
+            service_logger.error(
                 "User lookup by email failed: user not found",
                 extra={"email": email}
             )
@@ -317,7 +317,7 @@ class AuthService:
     async def get_user_by_id(self, *, user_id: int):
         user = await self.db.scalar(select(User).where(User.id == user_id))
         if not user:
-            service_logger.warning(
+            service_logger.error(
                 "User lookup failed: user not found",
                 extra={"user_id": user_id}
             )
@@ -347,7 +347,7 @@ class AuthService:
         data = await self.redis.get(redis_key, eviction_group="forgot_password")
 
         if not data:
-            service_logger.warning(
+            service_logger.error(
                 "Failed to retrieve Password Reset token from redis: Password reset token not found or expired."
             )
             raise PasswordResetTokenNotFoundException("Token not found or expired.")

@@ -73,8 +73,7 @@ class ServicesService:
         result = await self.db.scalars(paginated_query)
 
         items = result.all()
-        pages = math.ceil(total / filter.limit)
-        return items, total, pages
+        return items, total
 
 
     async def get_filtered_services_for_public(
@@ -108,7 +107,7 @@ class ServicesService:
     ):
         service = await self.db.get(Service, service_id)
         if not service:
-            service_logger.warning(
+            service_logger.error(
                 "Service lookup failed: Record not found", 
                 extra={"service_id": service_id}
             )
@@ -167,7 +166,7 @@ class ServicesService:
             raise e
 
         if not service.is_active:
-            service_logger.warning(
+            service_logger.error(
                 "Active service lookup failed: Record not found", 
                 extra={"service_id": service_id}
             )

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.services.services_service import *
 from app.schemas.services import ServiceFilterParamForPublic, ServiceOutForPublic
 from typing import Annotated
-from app.schemas.common import PageResponse
+from app.schemas.common import PageResponse, create_page_response
 
 router = APIRouter(prefix="/services", tags=["Services"])
 
@@ -21,18 +21,15 @@ async def get_services_public(
     """
     Get all services.
     """
-    items, total, pages = await services_service.get_filtered_services_for_public(filter=filter)
+    items, total = await services_service.get_filtered_services_for_public(filter=filter)
 
-    validated_items = [
-        ServiceOutForPublic.model_validate(service, from_attributes=True) for service in items
-    ]
+    validated_items = [ServiceOutForPublic.model_validate(service, from_attributes=True) for service in items]
 
-    return PageResponse[ServiceOutForPublic](
+    return create_page_response(
         items=validated_items,
         total=total,
         page=filter.page,
         size=filter.limit,
-        pages=pages,
     )
 
 @router.get(

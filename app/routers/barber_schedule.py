@@ -53,8 +53,10 @@ async def get_barber_schedules(
         is_off=filter.is_off,
     )
 
+    validated_items = [BarberScheduleOut.model_validate(schedule, from_attributes=True) for schedule in items]
+
     return create_page_response(
-        items=items,
+        items=validated_items,
         total=total,
         page=filter.page,
         size=filter.limit,

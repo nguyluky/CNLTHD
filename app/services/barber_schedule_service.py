@@ -180,7 +180,7 @@ class BarberScheduleService:
             )
         )
         if not barber_schedule:
-            service_logger.warning(
+            service_logger.error(
                 "Barber schedule look up failed: barber schedule not found", 
                 extra={"barber_id": barber_id, "barber_schedule_id": barber_schedule_id}
             )

@@ -16,7 +16,6 @@ from app.core.database import (
 )
 from app.core.database import BookingService as BookingServiceModel
 from app.dependencies import get_current_active_user
-from app.routers import barber
 from app.routers import service_logger
 from app.schemas.booking import BookingFilterParam
 from app.core.exception import DomainException
@@ -115,7 +114,7 @@ class BookingService:
         ).first()
 
         if not booking:
-            service_logger.warning(
+            service_logger.error(
                 "Booking look up failed: record not found", 
                 extra={"booking_id": booking_id}
             )
@@ -175,7 +174,7 @@ class BookingService:
 
         services = service_result.all()
         if len(services) != len(service_ids):
-            service_logger.warning(
+            service_logger.error(
                 "Service for booking look up failed: One of the services does not exist"
             )
             raise RequestedServiceForBookingNotFoundException(
@@ -209,10 +208,34 @@ class BookingService:
                 end_time=end_time
             )
         except RequestedBarberDoesNotWorkInRequestedBookingDateException as e:
+            service_logger.error(
+                "Booking creation failed: Requested barber does not work in requested booking date",
+                extra={
+                    "barber_id":barber_id, 
+                    "booking_date":booking_date
+                }
+            )
             raise e
         except RequestedBookingTimeIsNotWithinScheduleException as e:
+            service_logger.error(
+                "Booking creation failed: Requested booking time is not within requested barber schedule",
+                extra={
+                    "barber_id":barber_id, 
+                    "start_time":start_time, 
+                    "end_time":end_time
+                }
+            )
             raise e
         except RequestedBookingTimeOverlappedWithExistedBookingException as e:
+            service_logger.error(
+                "Booking creation failed: Requested booking time overlapped with existed booking",
+                extra={
+                    "barber_id":barber_id, 
+                    "booking_date":booking_date, 
+                    "start_time":start_time, 
+                    "end_time":end_time
+                }
+            )
             raise e
 
 
@@ -249,7 +272,7 @@ class BookingService:
         self, *, booking: Booking, new_status: BookingStatus
     ) -> Booking:
         if booking.status in [BookingStatus.completed, BookingStatus.cancelled]:
-            service_logger.warning(
+            service_logger.error(
                 "Booking update fail: Cannot update status of a completed or cancelled booking",
                 extra={"booking_id": booking.id, "status": booking.status}
             )
@@ -295,6 +318,13 @@ class BookingService:
                     barber_id=booking.barber_id
                 )
             except RequestedBarberDoesNotWorkInRequestedBookingDateException as e:
+                service_logger.error(
+                    "Booking schedule update failed: Requested barber does not work in requested booking date",
+                    extra={
+                        "barber_id":booking.barber_id, 
+                        "booking_date":booking_date
+                    }
+                )
                 raise e
             
             booking.booking_date = booking_date
@@ -319,8 +349,25 @@ class BookingService:
                     end_time=end_time
                 )
             except RequestedBookingTimeIsNotWithinScheduleException as e:
+                service_logger.error(
+                    "Booking creation failed: Requested booking time is not within requested barber schedule",
+                    extra={
+                        "barber_id":booking.barber_id, 
+                        "start_time":start_time, 
+                        "end_time":end_time
+                    }
+                )
                 raise e
             except RequestedBookingTimeOverlappedWithExistedBookingException as e:
+                service_logger.error(
+                    "Booking creation failed: Requested booking time overlapped with existed booking",
+                    extra={
+                        "barber_id":booking.barber_id, 
+                        "booking_date":booking_date, 
+                        "start_time":start_time, 
+                        "end_time":end_time
+                    }
+                )
                 raise e 
 
             booking.start_time = start_time
