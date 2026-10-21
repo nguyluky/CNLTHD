@@ -1,12 +1,5 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import User, get_db
-from app.schemas.common import create_error_response
-from app.core.helper import camel_to_upper_snake_case
 from app.dependencies import get_current_active_admin
 from app.schemas.common import PageResponse, create_page_response
 from app.schemas.user import UserOut
@@ -38,7 +31,7 @@ async def get_all_users(
     limit = filter.limit
     offset = (filter.page - 1) * limit
 
-    users, total = await admin_service.get_all_users(
+    items, total = await admin_service.get_all_users(
         full_name=filter.full_name,
         email=filter.email,
         phone=filter.phone,
@@ -48,7 +41,7 @@ async def get_all_users(
     )
 
     return create_page_response(
-        items=users,
+        items=items,
         total=total or 0,
         page=filter.page,
         size=filter.limit,

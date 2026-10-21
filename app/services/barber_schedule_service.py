@@ -1,15 +1,13 @@
-import math
 from typing import Annotated
 from fastapi import Depends
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import time
 
 from app.core.exception import DomainException
 from app.dependencies import get_current_active_user
-from app.schemas.barber_schedule import BarberScheduleFilterParam
 from app.core.database import BarberSchedule, User, get_db
+from app.routers import service_logger
 
 
 class _BarberScheduleException(DomainException):
@@ -30,6 +28,10 @@ class BarberSchedulePolicy:
         is_admin = user.is_admin()
         is_assigned_barber = user.is_barber() and user.id == barber_id
         if not (is_admin or is_assigned_barber):
+            service_logger.warning(
+                "Unauthorized request to barber schedule from user",
+                extra={"user_id":user.id, "role": user.role}
+            )
             raise UserNotAllowedToViewBarberScheduleException("You are not allowed to perform this action")
         
     
@@ -57,8 +59,8 @@ class BarberScheduleService:
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query) or 0
 
-        if total == 0:
-            raise BarberScheduleNotFoundException("Barber Schedule Not Found")
+        # if total == 0:
+        #     raise BarberScheduleNotFoundException("Barber Schedule Not Found")
 
         offset = (page - 1) * limit
         paginated_query = (
@@ -92,6 +94,11 @@ class BarberScheduleService:
         
         await self.db.commit()
         await self.db.refresh(barber_schedule)
+
+        service_logger.info(
+            "Barber schedule created successfully", 
+            extra={"barber_id": barber_id, "barber_schedule_id": barber_schedule.id}
+        )
         
         return barber_schedule
 
@@ -116,14 +123,10 @@ class BarberScheduleService:
         end_time: time | None = None,
         is_off: bool | None = None,
     ):
-        barber_schedule = await self.db.scalar(
-            select(BarberSchedule).where(
-                BarberSchedule.id == barber_schedule_id,
-                BarberSchedule.barber_id == barber_id,
-            )
-        )
-        if not barber_schedule:
-            raise BarberScheduleNotFoundException("Barber schedule not found")
+        try:
+            barber_schedule = await self.get_barber_schedule_by_id(barber_id=barber_id, barber_schedule_id=barber_schedule_id)
+        except BarberScheduleNotFoundException as e:
+            raise e
 
         if date_of_week is not None:
             barber_schedule.date_of_week = date_of_week
@@ -140,10 +143,33 @@ class BarberScheduleService:
         await self.db.commit()
         await self.db.refresh(barber_schedule)
 
+        service_logger.info(
+            "Barber schedule updated successfully", 
+            extra={"barber_id": barber_id, "barber_schedule_id": barber_schedule.id}
+        )
+
         return barber_schedule
     
     async def delete_barber_schedule(
         self,
+        barber_schedule_id: int,
+        barber_id: int,
+    ):
+        try:
+            barber_schedule = await self.get_barber_schedule_by_id(barber_id=barber_id, barber_schedule_id=barber_schedule_id)
+        except BarberScheduleNotFoundException as e:
+            raise e
+
+        await self.db.delete(barber_schedule)
+        await self.db.commit()
+
+        service_logger.info(
+            "Barber schedule deleted successfully", 
+            extra={"barber_id": barber_id, "barber_schedule_id": barber_schedule.id}
+        )
+
+    async def get_barber_schedule_by_id(
+        self, 
         barber_schedule_id: int,
         barber_id: int,
     ):
@@ -154,10 +180,14 @@ class BarberScheduleService:
             )
         )
         if not barber_schedule:
+            service_logger.error(
+                "Barber schedule look up failed: barber schedule not found", 
+                extra={"barber_id": barber_id, "barber_schedule_id": barber_schedule_id}
+            )
             raise BarberScheduleNotFoundException("Barber schedule not found")
 
-        await self.db.delete(barber_schedule)
-        await self.db.commit()
+        return barber_schedule
+        
 
 
 async def get_barber_schedules_service(db: AsyncSession = Depends(get_db)):

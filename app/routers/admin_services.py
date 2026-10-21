@@ -1,5 +1,6 @@
 from typing import Annotated
-from app.schemas.common import PageResponse
+from app.routers import service_logger
+from app.schemas.common import PageResponse, create_page_response
 from app.dependencies import require_roles
 from app.core.database import UserRole
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -22,18 +23,13 @@ async def get_services(
     filter: Annotated[ServiceFilterParamForPrivate, Query()],
     services_service: ServicesServiceDep
     ):
-    items, total, pages = await services_service.get_filtered_services_for_private(filter=filter)
+    items, total= await services_service.get_filtered_services_for_private(filter=filter)
 
-    validated_items = [
-        ServiceOutForPrivate.model_validate(service, from_attributes=True) for service in items
-    ]
-
-    return PageResponse[ServiceOutForPrivate](
-        items=validated_items,
+    return create_page_response(
+        items=items,
         total=total,
         page=filter.page,
         size=filter.limit,
-        pages=pages,
     )
 
 @router.get(

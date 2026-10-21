@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 from redis_fastapi import CacheBackendDep
 from sqlalchemy.orm import selectinload
 
@@ -13,6 +13,7 @@ from app.core.config import configEnv
 from app.core.database import SessionToken, User, get_db
 from app.core.security import hash_sha256
 from app.core.exception import DomainException, UserNotFoundException
+from app.routers import service_logger
 
 class _AuthException(DomainException):
     """Base class for authentication-related exceptions."""
@@ -64,6 +65,10 @@ class AuthService:
         )
 
         if existing_user.scalar_one_or_none():
+            service_logger.error(
+                "Failed to register new user: Email or phone already exists", 
+                extra={"email": email, "phone": phone}
+            )
             raise UserExistsException("User with this email or phone already exists.")
 
         confirmation_token = str(uuid.uuid4())
@@ -88,9 +93,16 @@ class AuthService:
         user_data = await self.redis.get(redis_key, eviction_group="register")
 
         if not user_data:
+            service_logger.error(
+                "Failed to retrieve confirmation token from redis: Confirmation token not found or expired."
+            )
             raise TokenNotFoundException("Token not found or expired.")
 
         await self.redis.delete(redis_key, eviction_group="register")
+        service_logger.debug(
+            "Cache invalidated for registration",
+            extra={"redis_key": redis_key}
+        )
 
         user = User()
         user.full_name = user_data["full_name"]
@@ -102,6 +114,10 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(user)
 
+        service_logger.info(
+            "New user registration confirmed successfully",
+            extra={"user_id": user.id}
+        )
         return user
 
     async def login(self, *, email: str, password: str):
@@ -109,8 +125,16 @@ class AuthService:
         user = user.scalar_one_or_none()
 
         if not user or not user.verify_password(password):
+            service_logger.error(
+                "Failed login attempt: user not found",
+                extra={"email": email}
+            )
             raise InvalidCredentialsException("Invalid email or password.")
 
+        service_logger.info(
+            "User login successfully",
+            extra={"user_id": user.id}
+        )
         return user
 
     async def generate_new_refresh_token(self, *, user: User):
@@ -142,6 +166,11 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(session)
 
+        service_logger.info(
+            "Refresh token created successfully",
+            extra={"user_id": user.id, "session_id": session.id}
+        )
+
         return refresh_token, session
 
     def generate_access_token_from_session(
@@ -152,6 +181,11 @@ class AuthService:
         )
         access_token = user.create_access_token(
             expires_delta=access_token_expires_delta, sid=f"session_{session.id}"
+        )
+
+        service_logger.info(
+            "Access token from session created successfully",
+            extra={"session_id": session.id}
         )
         return access_token
 
@@ -168,19 +202,35 @@ class AuthService:
         session = session.scalar_one_or_none()
 
         if not session:
+            service_logger.error(
+                "Session's refresh token not found or expired"
+            )
             raise RefreshTokenNotFoundException(
                 "Refresh token not found or expired. Please login again."
             )
 
         if session.revoked_at is not None:
+            service_logger.error(
+                "Session's refresh token has been revoked",
+                extra={"session_id": session.id}
+            )
             raise RefreshTokenNotFoundException(
                 "Refresh token has been revoked. Please login again."
             )
         
         if session.expired_at < datetime.now():
+            service_logger.error(
+                "Session's refresh token has expired",
+                extra={"session_id": session.id}
+            )
             raise TokenExpiredException(
                 "Refresh token has expired. Please login again."
             )
+
+        service_logger.info(
+            "Successfully retrieve session fron refresh token",
+            extra={"session_id": session.id}
+        )
 
         return session
 
@@ -198,6 +248,11 @@ class AuthService:
         await self.db.commit()
         await self.db.refresh(session)
 
+        service_logger.info(
+            "Refresh token refreshed successfully",
+            extra={"session_id": session.id}
+        )
+
         return new_refresh_token, session
 
     async def revoke_session(self, *, session: SessionToken):
@@ -205,6 +260,11 @@ class AuthService:
         self.db.add(session)
         await self.db.commit()
         await self.db.refresh(session)
+
+        service_logger.info(
+            "Session revoked successfully",
+            extra={"session_id": session.id}
+        )
 
         return session
 
@@ -220,6 +280,11 @@ class AuthService:
             self.db.add(session)
         await self.db.commit()
 
+        service_logger.info(
+            "Sessions from user revoked successfully",
+            extra={"user_id": user.id}
+        )
+
     async def get_active_sessions_for_user(self, *, user: User):
         session = await self.db.scalars(
             select(SessionToken)
@@ -231,6 +296,10 @@ class AuthService:
     async def get_user_by_email(self, *, email: str):
         user = await self.db.scalar(select(User).where(User.email == email))
         if not user:
+            service_logger.error(
+                "User lookup by email failed: user not found",
+                extra={"email": email}
+            )
             raise UserNotFoundException()
         return user
 
@@ -239,11 +308,19 @@ class AuthService:
         self.db.add(user)
         await self.db.commit()
         await self.db.refresh(user)
+        service_logger.info(
+            "User's password updated successfully",
+            extra={"user_id": user.id}
+        )
         return user
 
     async def get_user_by_id(self, *, user_id: int):
         user = await self.db.scalar(select(User).where(User.id == user_id))
         if not user:
+            service_logger.error(
+                "User lookup failed: user not found",
+                extra={"user_id": user_id}
+            )
             raise UserNotFoundException()
         return user
     
@@ -258,6 +335,11 @@ class AuthService:
             eviction_group="forgot_password",
         )
 
+        service_logger.info(
+            "Reset password token for user created successfully",
+            extra={"user_id": user.id}
+        )
+
         return reset_token
     
     async def get_user_by_password_reset_token(self, *, token: str):
@@ -265,6 +347,9 @@ class AuthService:
         data = await self.redis.get(redis_key, eviction_group="forgot_password")
 
         if not data:
+            service_logger.error(
+                "Failed to retrieve Password Reset token from redis: Password reset token not found or expired."
+            )
             raise PasswordResetTokenNotFoundException("Token not found or expired.")
 
         user_id = data["user_id"]
@@ -275,6 +360,10 @@ class AuthService:
     async def delete_password_reset_token(self, *, token: str):
         redis_key = f"forgot_password:{token}"
         await self.redis.delete(redis_key, eviction_group="forgot_password")
+        service_logger.debug(
+            "Cache invalidated for reset password token",
+            extra={"redis_key": redis_key}
+        )
     
 
 def get_auth_service(

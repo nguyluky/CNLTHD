@@ -10,7 +10,7 @@ from fastapi import status
 
 from fastapi.security import OAuth2PasswordBearer
 
-from app.core.logger import logger
+from app.core.logger import service_logger
 from app.core.database import User, get_db
 from app.core.security import decode_token
 from app.core.database import User, UserRole, get_db
@@ -70,7 +70,7 @@ async def get_current_active_admin(
     req: Request, current_user: User = Depends(get_current_active_user)
 ):
     if not current_user.is_admin():
-        logger.warning(
+        service_logger.warning(
             f"{current_user.email}({current_user.role.value}) is trying to access admin route {req.url.path}"
         )
         raise HTTPException(status_code=403, detail="Not enough permissions")

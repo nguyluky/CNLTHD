@@ -102,7 +102,7 @@ Nếu chọn PostgreSQL, khởi động cả hai dịch vụ bằng `docker comp
 Sau đó chạy API trong môi trường Python đã kích hoạt:
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --no-access-log
 ```
 
 Ứng dụng tự tạo các bảng chưa tồn tại khi khởi động.

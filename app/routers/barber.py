@@ -2,9 +2,10 @@ from datetime import date
 import json
 from urllib import response
 from redis_fastapi import CacheBackendDep
+from app.schemas import barber
 from app.schemas.barber import BarberFilterParam, BarberOut
 from app.schemas.barber_schedule import AvailableSlotOut
-from app.schemas.common import PageResponse
+from app.schemas.common import PageResponse, create_page_response
 from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, status
 from app.services.barber_service import *
@@ -23,19 +24,14 @@ async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
     barber_service: BarberServiceDep,
 ):
-    items, total, pages = await barber_service.get_filtered_barbers(filter=filter)
+    items, total = await barber_service.get_filtered_barbers(filter=filter)
 
-    validated_items = [BarberOut.model_validate(service) for service in items]
-
-    response = PageResponse[BarberOut](
-        items=validated_items,
+    return create_page_response(
+        items=items,
         total=total,
         page=filter.page,
         size=filter.limit,
-        pages=pages,
     )
-
-    return response
 
 
 @router.get(
