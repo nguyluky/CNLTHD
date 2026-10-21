@@ -1,5 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_active_admin
 from app.schemas.common import PageResponse, create_page_response
 from app.schemas.user import UserOut

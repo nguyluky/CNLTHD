@@ -1,6 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, ConfigDict, model_validator, Field
-from app.schemas.common import CustomEmailStr, CustomPhoneStr, FullNameStr, PasswordStr
+from app.schemas.common import CustomEmailStr, CustomPhoneStr, SanitizedFullNameStr, PasswordStr
 
 
 class UserOut(BaseModel):
@@ -15,7 +15,7 @@ class UserOut(BaseModel):
 
 
 class UpdateProfileIn(BaseModel):
-    full_name: Optional[FullNameStr] = Field(
+    full_name: Optional[SanitizedFullNameStr] = Field(
         default=None, description="Updated full name."
     )
     email: Optional[CustomEmailStr] = Field(

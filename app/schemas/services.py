@@ -2,17 +2,16 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 import decimal
-
-from app.schemas.common import FilterParamBase
+from app.schemas.common import FilterParamBase, SanitizedDescriptionStr, SanitizedNameStr
 
 class ServiceBase(BaseModel):
-    name: str = Field(
+    name: SanitizedNameStr = Field(
         ...,
         min_length=1,
         max_length=100,
         description="The name of the service (e.g., 'Classic Haircut').",
     )
-    description: Optional[str] = Field(
+    description: Optional[SanitizedDescriptionStr] = Field(
         default=None,
         max_length=500,
         description="A detailed description of what the service includes.",
@@ -32,13 +31,13 @@ class ServiceCreateIn(ServiceBase):
     pass
 
 class ServiceUpdateIn(BaseModel):
-    name: Optional[str] = Field(
+    name: Optional[SanitizedNameStr] = Field(
         default=None,
         min_length=1,
         max_length=100,
         description="Updated name of the service.",
     )
-    description: Optional[str] = Field(
+    description: Optional[SanitizedDescriptionStr] = Field(
         default=None, max_length=500, description="Updated service description."
     )
     price: Optional[decimal.Decimal] = Field(
