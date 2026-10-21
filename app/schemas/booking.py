@@ -9,10 +9,18 @@ from app.schemas.common import FilterParamBase
 
 
 class BookingFilterParam(FilterParamBase):
-    booking_date: Optional[date] = None
-    status: Optional[BookingStatus] = None
-    barber_id: Optional[int] = None
-    customer_id: Optional[int] = None
+    booking_date: Optional[date] = Field(
+        default=None, description="Filter bookings by specific date."
+    )
+    status: Optional[BookingStatus] = Field(
+        default=None, description="Filter by booking status."
+    )
+    barber_id: Optional[int] = Field(
+        default=None, description="Filter by specific barber ID."
+    )
+    customer_id: Optional[int] = Field(
+        default=None, description="Filter by specific customer ID."
+    )
 
 
 

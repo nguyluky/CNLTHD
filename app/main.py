@@ -7,8 +7,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from redis_fastapi import FastAPIRedis
 
+from app.core.middleware import AccessLoggingMiddleware
 from app.schemas.common import create_error_response, ErrorModel, ValidationErrorModel, create_validation_error_response
-from app.core.logger import logger
+from app.core.logger import service_logger
 from app.core.config import configEnv
 from app.core.database import Base
 from app.core.database import engine
@@ -22,7 +23,7 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
-            logger.info("Database tables created successfully.")
+            service_logger.info("Database tables created successfully.")
         yield
     finally:
         await engine.dispose()
@@ -36,6 +37,10 @@ origins = [
 app = FastAPI(
     title=configEnv.APP_NAME,
     version="1.0.0",
+    description="""
+    CNLTHD is a backend API for a hair salon's service management and scheduling system. 
+    The system enables customers to search for services, select barbers, and book appointments; it also helps barbers manage their work schedules and allows administrators to manage users, services, and appointments.
+    """,
     lifespan=lifespan,
     responses={
         500: {"model": ErrorModel, "description": "Internal Server Error"},
@@ -53,6 +58,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AccessLoggingMiddleware)
 
 app.include_router(router)
 
@@ -68,7 +74,7 @@ async def health():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exception: Exception):
-    logger.error(
+    service_logger.error(
         f"Unhandled Exception on {request.method} {request.url}: {exception}",
         exc_info=True,
     )

@@ -1,26 +1,61 @@
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
-from decimal import Decimal
+from pydantic import BaseModel, ConfigDict, Field
+import decimal
 
 from app.routers.admin import MakeOptional
 from app.schemas.common import FilterParamBase, SanitizedDescriptionStr, SanitizedNameStr
 
 class ServiceBase(BaseModel):
-    name: SanitizedNameStr
-    description: Optional[SanitizedDescriptionStr] = None
-    price: Decimal
-    duration_minutes: int
+    name: SanitizedNameStr = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="The name of the service (e.g., 'Classic Haircut').",
+    )
+    description: Optional[SanitizedDescriptionStr] = Field(
+        default=None,
+        max_length=500,
+        description="A detailed description of what the service includes.",
+    )
+    price: Decimal = Field(
+        ...,
+        ge=decimal.Decimal("0.00"),
+        description="The cost of the service (must be zero or greater).",
+    )
+    duration_minutes: int = Field(
+        ...,
+        gt=0,
+        description="The estimated duration of the service in minutes (must be greater than 0)."
+    )
 
 class ServiceCreateIn(ServiceBase):
     pass
 
 class ServiceUpdateIn(BaseModel):
-    name: Optional[SanitizedNameStr] = None
-    description: Optional[SanitizedDescriptionStr] = None
-    price: Optional[Decimal] = None
-    duration_minutes: Optional[int] = None
-    is_active: Optional[bool] = None
+    name: Optional[SanitizedNameStr] = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Updated name of the service.",
+    )
+    description: Optional[SanitizedDescriptionStr] = Field(
+        default=None, max_length=500, description="Updated service description."
+    )
+    price: Optional[Decimal] = Field(
+        default=None,
+        ge=decimal.Decimal("0.00"),
+        description="Updated price of the service.",
+    )
+    duration_minutes: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Updated duration in minutes.",
+    )
+    is_active: Optional[bool] = Field(
+        default=None,
+        description="Updated active status of the service.",
+    )
 
 class ServiceOutForPrivate(ServiceBase):
     id: int
@@ -34,11 +69,42 @@ class ServiceOutForPublic(ServiceBase):
     model_config = ConfigDict(from_attributes=True)
 
 class ServiceFilterParamForPublic(FilterParamBase):
-    name: Optional[str] = None
-    min_price: Optional[Decimal] = None
-    max_price: Optional[Decimal] = None
-    min_duration_minutes: Optional[int] = None
-    max_duration_minutes: Optional[int] = None
+    name: Optional[str] = Field(
+        default=None, description="Filter services containing this name."
+    )
+    min_price: Optional[decimal.Decimal] = Field(
+        default=None,
+        description="Minimum price filter.",
+    )
+    max_price: Optional[decimal.Decimal] = Field(
+        default=None,
+        description="Maximum price filter.",
+    )
+    min_duration_minutes: Optional[int] = Field(
+        default=None, description="Minimum duration filter in minutes."
+    )
+    max_duration_minutes: Optional[int] = Field(
+        default=None, description="Maximum duration filter in minutes."
+    )
 
-class ServiceFilterParamForPrivate(ServiceFilterParamForPublic):
-    is_active: Optional[bool] = None
+class ServiceFilterParamForPrivate(FilterParamBase):
+    name: Optional[str] = Field(
+        default=None, description="Filter services containing this name."
+    )
+    min_price: Optional[decimal.Decimal] = Field(
+        default=None,
+        description="Minimum price filter.",
+    )
+    max_price: Optional[decimal.Decimal] = Field(
+        default=None,
+        description="Maximum price filter.",
+    )
+    min_duration_minutes: Optional[int] = Field(
+        default=None, description="Minimum duration filter in minutes."
+    )
+    max_duration_minutes: Optional[int] = Field(
+        default=None, description="Maximum duration filter in minutes."
+    )
+    is_active: Optional[bool] = Field(
+        default=None, description="Filter by active status."
+    )

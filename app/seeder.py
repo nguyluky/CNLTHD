@@ -1,7 +1,7 @@
 import asyncio
 from datetime import date, time, timedelta
 from decimal import Decimal
-from app.core.logger import logger
+from app.core.logger import service_logger
 from app.core.database import (
     BarberSchedule,
     Base,
@@ -18,19 +18,19 @@ from app.core.config import configEnv
 
 
 async def reset_database():
-    logger.info("Clearing Database...")
+    service_logger.info("Clearing Database...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database cleared")
+    service_logger.info("Database cleared")
 
 async def seed_data():
-    logger.info(f"Seeding Database: {configEnv.DATABASE_URL}")
+    service_logger.info(f"Seeding Database: {configEnv.DATABASE_URL}")
 
     await reset_database()
 
     async with SessionLocal() as db:
-        logger.info("Currently seeding Database...")
+        service_logger.info("Currently seeding Database...")
 
         # Services
         services = [
@@ -158,7 +158,7 @@ async def seed_data():
         db.add_all(booking_services)
 
         await db.commit()
-        logger.info("Seeding finished")
+        service_logger.info("Seeding finished")
 
 
 if __name__ == "__main__":
