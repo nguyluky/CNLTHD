@@ -20,10 +20,8 @@ async def get_services_public(
     ):
     items, total = await services_service.get_filtered_services_for_public(filter=filter)
 
-    validated_items = [ServiceOutForPublic.model_validate(service, from_attributes=True) for service in items]
-
     return create_page_response(
-        items=validated_items,
+        items=items,
         total=total,
         page=filter.page,
         size=filter.limit,

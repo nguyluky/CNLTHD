@@ -26,10 +26,8 @@ async def get_barbers(
 ):
     items, total = await barber_service.get_filtered_barbers(filter=filter)
 
-    validated_items = [BarberOut.model_validate(barber, from_attributes=True) for barber in items]
-
     return create_page_response(
-        items=validated_items,
+        items=items,
         total=total,
         page=filter.page,
         size=filter.limit,

@@ -83,10 +83,8 @@ async def get_bookings(
         customer_id=filter_.customer_id,
     )
 
-    validated_items = [BookingOut.model_validate(booking, from_attributes=True) for booking in items]
-
     return create_page_response(
-        items=validated_items,
+        items=items,
         total=total,
         page=filter_.page,
         size=filter_.limit,

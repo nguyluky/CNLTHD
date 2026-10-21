@@ -40,10 +40,8 @@ async def get_all_users(
         offset=offset
     )
 
-    validated_items = [UserOut.model_validate(user, from_attributes=True) for user in items]
-
     return create_page_response(
-        items=validated_items,
+        items=items,
         total=total or 0,
         page=filter.page,
         size=filter.limit,
