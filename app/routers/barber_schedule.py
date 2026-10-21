@@ -28,7 +28,7 @@ router = APIRouter(prefix="/barber_schedules", tags=["Barber Schedule"])
 
 @router.get(
     "/{barber_id}/schedules",
-    description="Get barber schedules for the current barber or admin",
+    summary="Get barber schedules for the current barber or admin.",
     response_model=PageResponse[BarberScheduleOut],
     status_code=status.HTTP_200_OK,
     dependencies=[
@@ -41,9 +41,6 @@ async def get_barber_schedules(
     filter: Annotated[BarberScheduleFilterParam, Query()],
     barber_schedule_service: BarberScheduleServiceDep,
 ):
-    """
-    Get barber schedules for the current barber or admin.
-    """
 
     items, total = await barber_schedule_service.get_filtered_barber_schedules(
         barber_id,
@@ -65,7 +62,7 @@ async def get_barber_schedules(
 
 @router.post(
     "/{barber_id}/schedules",
-    description="Create a new barber schedule for the current barber or admin",
+    summary="Create a new barber schedule, only barbers or admins can perform this action.",
     response_model=BarberScheduleOut,
     status_code=status.HTTP_201_CREATED,
     dependencies=[
@@ -81,7 +78,11 @@ async def create_barber_schedule(
     current_user: User = Depends(require_roles(UserRole.admin, UserRole.barber)),
 ):
     """
-    Create a new barber schedule for the current barber or admin.
+    Create a new barber schedule.
+    - **date_of_week**: new schedule day of the week from monday(0) to sunday(6)
+    - **start_time**: the time where new schedule starts
+    - **end_time**: the time where new schedule ends
+    - **is_off**: is this a day off or not?
     """
 
     barber_schedule = await barber_schedule_service.create_barber_schedule(
@@ -99,7 +100,7 @@ async def create_barber_schedule(
 
 @router.patch(
     "/{barber_id}/schedules/{schedule_id}",
-    description=" Admins have the authority to edit barbers' schedules."
+    summary=" Admins have the authority to edit barbers' schedules."
     "Barbers can edit their own schedules.",
     response_model=BarberScheduleOut,
     status_code=status.HTTP_200_OK,
@@ -116,8 +117,11 @@ async def update_barber_schedule(
     barber_schedule_service: BarberScheduleServiceDep,
 ):
     """
-    Admins have the authority to edit barbers' schedules.
-    Barbers can edit their own schedules.
+    Update a specified barber schedule.
+    - **date_of_week**: Optional new day of the week from monday(0) to sunday(6)
+    - **start_time**: Optional new start time
+    - **end_time**: Optional new end time
+    - **is_off**: Optional is this a day off or not?
     """
 
     barber_schedule = await barber_schedule_service.update_barber_schedule(
@@ -136,7 +140,7 @@ async def update_barber_schedule(
 
 @router.delete(
     "/{barber_id}/schedules/{schedule_id}",
-    description="Administrators have the authority to delete barbers' work schedules."
+    summary="Administrators have the authority to delete barbers' work schedules."
     "Barbers can delete their own work schedules.",
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[

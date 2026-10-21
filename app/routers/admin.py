@@ -19,7 +19,11 @@ router = APIRouter(
 )
 
 
-@router.get("/users", description="Get all users", response_model=PageResponse[UserOut])
+@router.get(
+    "/users", 
+    summary="Get all users.", 
+    response_model=PageResponse[UserOut]
+)
 async def get_all_users(
     filter: Annotated[GetAllUsersFilterIn, Query()], admin_service: AdminServiceDep
 ):
@@ -47,9 +51,19 @@ async def get_all_users(
 
 
 @router.post(
-    "/users", description="Create a new user", status_code=201, response_model=UserOut
+    "/users", 
+    summary="Create a new user.", 
+    status_code=201, 
+    response_model=UserOut
 )
 async def create_user(user: CreateUserIn, admin_service: AdminServiceDep):
+    """
+    Create a new user.
+    - **full_name**: new user full name
+    - **email**: new user email
+    - **phone**: new user phone
+    - **role**: new user role
+    """
     new_user = await admin_service.create_user(
         full_name=user.full_name,
         email=user.email,
@@ -60,12 +74,23 @@ async def create_user(user: CreateUserIn, admin_service: AdminServiceDep):
     return new_user
 
 
-@router.patch("/users/{user_id}", description="Update a user", response_model=UserOut)
+@router.patch(
+    "/users/{user_id}", 
+    summary="Update a user.", 
+    response_model=UserOut
+)
 async def update_user(
     user_id: int,
     user_update: UserUpdateIn,
     admin_service: AdminServiceDep,
 ):
+    """
+    Update a specified user.
+    - **full_name**: Optional new full name
+    - **email**: Optional new email
+    - **phone**: Optional new phone
+    - **role**: Optional new role
+    """
     user = await admin_service.update_user(
         user_id,
         full_name=user_update.full_name,

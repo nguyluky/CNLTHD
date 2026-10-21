@@ -16,7 +16,7 @@ router = APIRouter(prefix="/barbers", tags=["Barber"])
 
 @router.get(
     "",
-    description="Get all barbers",
+    summary="Get all barbers.",
     response_model=PageResponse[BarberOut],
     status_code=status.HTTP_200_OK,
 )
@@ -24,10 +24,6 @@ async def get_barbers(
     filter: Annotated[BarberFilterParam, Query()],
     barber_service: BarberServiceDep,
 ):
-    """
-    Get all barbers.
-    """
-
     items, total = await barber_service.get_filtered_barbers(filter=filter)
 
     validated_items = [BarberOut.model_validate(barber, from_attributes=True) for barber in items]
@@ -42,7 +38,7 @@ async def get_barbers(
 
 @router.get(
     "/{barber_id}",
-    description="Get barber by ID",
+    summary="Get barber by ID.",
     response_model=BarberOut,
     status_code=status.HTTP_200_OK,
 )
@@ -50,9 +46,6 @@ async def get_barber(
     barber_id: int,
     barber_service: BarberServiceDep,
 ):
-    """
-    Get a barber by ID.
-    """
 
     barber = await barber_service.get_barber_by_id(barber_id)
 
@@ -63,7 +56,7 @@ async def get_barber(
 
 @router.get(
     "/{barber_id}/available-slots",
-    description="Returns the specified barber free time slots in the specified date, the client can further specify the duration of each time slot",
+    summary="Returns the specified barber free time slots in the specified date.",
     response_model=AvailableSlotOut,
     status_code=200,
 )
@@ -74,6 +67,11 @@ async def get_available_slots(
     booking_date: date = Query(..., description="Specified date"),
     slot_duration: int = Query(30, description="specified slot duration in minutes"),
 ):
+    """
+    Returns the specified barber free time slots in the specified date, the client can further specify the duration of each time slot, with the default duration being 30 minutes.
+    If the barber has assigned bookings on the specified date, the slots which overlap with the booking time frames will not show up.
+    """
+
     available_slots = []
 
     redis_key = (

@@ -21,7 +21,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post(
     "/register",
-    description="Register a new user",
+    summary="Register a new user, requires email confirmation.",
     response_model=RegisterOut,
     status_code=201,
     responses={409: {"description": "User already exists"}},
@@ -62,7 +62,7 @@ async def initialize_user_registration(
 
 @router.post(
     "/confirm/{token}",
-    description="Confirm user registration",
+    summary="Confirm user registration.",
     response_model=RegisterOut,
     status_code=200,
     responses={404: {"description": "Token not found"}},
@@ -80,7 +80,7 @@ async def confirm_registration(token: str, auth_service: AuthServiceDep):
 
 @router.post(
     "/login",
-    description="Login with email and password",
+    summary="Login with email and password.",
     response_model=LoginOut,
     status_code=200,
 )
@@ -115,7 +115,7 @@ async def login(
 
 @router.post(
     "/refresh",
-    description="Refresh access token using refresh token",
+    summary="Refresh access token using refresh token.",
     response_model=LoginOut,
     status_code=200,
 )
@@ -152,7 +152,7 @@ async def refresh_token(
 
 @router.post(
     "/logout",
-    description="Logout and revoke refresh token",
+    summary="Logout and revoke refresh token.",
     status_code=200,
 )
 async def logout(
@@ -179,7 +179,7 @@ async def logout(
 
 @router.post(
     "/logout_all",
-    description="Logout from all devices and revoke all refresh tokens",
+    summary="Logout from all devices and revoke all refresh tokens.",
     status_code=200,
 )
 async def logout_all(
@@ -206,7 +206,7 @@ async def logout_all(
 
 @router.get(
     "/devices",
-    description="Get all active devices for the current user",
+    summary="Get all active devices for the current user.",
     response_model=DevicesOut,
     status_code=200,
 )
@@ -230,7 +230,7 @@ async def get_active_devices(
 
 @router.post(
     "/forgot_password",
-    description="Request password reset",
+    summary="Request password reset, then send reset link via email.",
     status_code=200,
 )
 async def forgot_password(
@@ -261,7 +261,7 @@ async def forgot_password(
 
 @router.post(
     "/reset_password/{token}",
-    description="Reset password using token",
+    summary="Reset password using a token created in /forgot_password.",
     status_code=200,
 )
 async def reset_password(
