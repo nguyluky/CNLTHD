@@ -2,8 +2,6 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 import decimal
-
-from app.routers.admin import MakeOptional
 from app.schemas.common import FilterParamBase, SanitizedDescriptionStr, SanitizedNameStr
 
 class ServiceBase(BaseModel):
@@ -18,7 +16,7 @@ class ServiceBase(BaseModel):
         max_length=500,
         description="A detailed description of what the service includes.",
     )
-    price: Decimal = Field(
+    price: decimal.Decimal = Field(
         ...,
         ge=decimal.Decimal("0.00"),
         description="The cost of the service (must be zero or greater).",
@@ -42,7 +40,7 @@ class ServiceUpdateIn(BaseModel):
     description: Optional[SanitizedDescriptionStr] = Field(
         default=None, max_length=500, description="Updated service description."
     )
-    price: Optional[Decimal] = Field(
+    price: Optional[decimal.Decimal] = Field(
         default=None,
         ge=decimal.Decimal("0.00"),
         description="Updated price of the service.",
