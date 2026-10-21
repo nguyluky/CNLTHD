@@ -10,7 +10,7 @@ router = APIRouter(prefix="/services", tags=["Services"])
 
 @router.get(
     "",
-    description="Get all services",
+    summary="Get all services.",
     response_model=PageResponse[ServiceOutForPublic],
     status_code=status.HTTP_200_OK,
 )
@@ -18,9 +18,6 @@ async def get_services_public(
     filter: Annotated[ServiceFilterParamForPublic, Query()],
     services_service: ServicesServiceDep
     ):
-    """
-    Get all services.
-    """
     items, total, pages = await services_service.get_filtered_services_for_public(filter=filter)
 
     validated_items = [
@@ -37,7 +34,7 @@ async def get_services_public(
 
 @router.get(
     "/{service_id}",
-    description="Get a service by ID",
+    summary="Get a service by ID.",
     response_model=ServiceOutForPublic,
     status_code=status.HTTP_200_OK,
 )
@@ -45,9 +42,6 @@ async def get_service_by_id_public(
     service_id: int, 
     services_service: ServicesServiceDep
     ):
-    """
-    Get a service by ID.
-    """
 
     service = await services_service.get_service_by_id_with_active_check(service_id=service_id)
     

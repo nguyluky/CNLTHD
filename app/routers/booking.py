@@ -36,7 +36,7 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 @router.get(
     "/{booking_id}",
-    description="Returns booking details, only owner customers or barbers that were assigned can see their dedicated booking detail",
+    summary="Returns booking detailss, the result varies based on the user's role.",
     response_model=BookingOut,
     status_code=status.HTTP_200_OK,
 )
@@ -44,8 +44,11 @@ async def get_booking_detail(
     booking_id: int,
     booking_service: BookingServiceDep,
     booking_service_policy: BookingServicePolicyDep,
-    # current_user: User = Depends(get_current_active_user),
 ):
+    """
+    Returns booking details, only owner customers or barbers that were assigned can see their dedicated booking detail.
+    """
+    
     booking = await booking_service.get_booking_by_id(booking_id)
 
     # policy check
@@ -56,7 +59,7 @@ async def get_booking_detail(
 
 @router.get(
     "",
-    description="Returns a list of booking, the result varies based on the user's role",
+    summary="Returns a list of booking, the result varies based on the user's role.",
     response_model=PageResponse[BookingOut],
     status_code=status.HTTP_200_OK,
 )
@@ -65,6 +68,10 @@ async def get_bookings(
     booking_service: BookingServiceDep,
     booking_service_policy: BookingServicePolicyDep,
 ):
+    """
+    Returns filtered bookings, only owner customers or barbers that were assigned can see their dedicated booking detail; admins can see all of the bookings inside the system.
+    """
+    
     filter_ = booking_service_policy.apply_user_filter(filter_)
 
     items, total = await booking_service.get_filtered_bookings(
@@ -86,7 +93,7 @@ async def get_bookings(
 
 @router.post(
     "",
-    description="Allows customers to book schedules",
+    summary="Allows customers to book schedules.",
     response_model=BookingOut,
     status_code=status.HTTP_201_CREATED,
 )
@@ -119,7 +126,7 @@ async def create_booking(
 
 @router.patch(
     "/{booking_id}/status",
-    description="Changes the booking status",
+    summary="admins and assigned barbers can change the booking status.",
     status_code=status.HTTP_200_OK,
     response_model=BookingOut,
     dependencies=[Depends(require_roles(UserRole.admin, UserRole.barber))],
@@ -149,7 +156,7 @@ async def update_booking_status(
 
 @router.patch(
     "/{booking_id}/cancel",
-    description="Updates the booking status to cancelled, unless the booking was completed",
+    summary="Updates the booking status to canceled, unless the booking was completed.",
     status_code=status.HTTP_200_OK,
 )
 async def cancel_booking(
@@ -174,7 +181,7 @@ async def cancel_booking(
 
 @router.patch(
     "/{booking_id}/reschedule",
-    description="Allows owner customers and admins to change the date and time of booking",
+    summary="Allows owner customers and admins to change the date and time of booking.",
     status_code=status.HTTP_200_OK,
     dependencies=[Depends(require_roles(UserRole.admin, UserRole.customer))]
 )
