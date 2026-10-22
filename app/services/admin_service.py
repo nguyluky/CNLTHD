@@ -84,7 +84,8 @@ class AdminService:
         new_user.email = email
         new_user.phone = phone
         new_user.role = role
-        new_user.hash_password(password)
+
+        await new_user.async_hash_password(password)
         self.db.add(new_user)
         await self.db.commit()
         await self.db.refresh(new_user)
@@ -128,7 +129,7 @@ class AdminService:
         if role is not None:
             user.role = role
         if password is not None:
-            user.hash_password(password)
+            await user.async_hash_password(password)
 
         await self.db.commit()
         await self.db.refresh(user)

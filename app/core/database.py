@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime, time, date, timedelta
 from decimal import Decimal
 from enum import Enum as PyEnum
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from app.core.security import create_access_token
 
@@ -88,8 +89,14 @@ class User(Base):
     def __repr__(self) -> str:
         return f"<User(id={self.id}, full_name='{self.full_name}', email='{self.email}', role='{self.role.name}', created_at='{self.created_at}')>"
 
+    async def async_verify_password(self, password: str) -> bool:
+        return await run_in_threadpool(verify_password, password, self.hashed_password)
+
     def verify_password(self, password: str) -> bool:
         return verify_password(password, self.hashed_password)
+
+    async def async_hash_password(self, password: str) -> None:
+        self.hashed_password = await run_in_threadpool(get_password_hash,password)
 
     def hash_password(self, password: str) -> None:
         self.hashed_password = get_password_hash(password)

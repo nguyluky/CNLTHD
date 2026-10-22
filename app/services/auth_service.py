@@ -1,7 +1,9 @@
+import asyncio
 from datetime import timedelta, timezone
 from datetime import datetime
 from typing import Annotated
 import uuid
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,7 +110,8 @@ class AuthService:
         user.full_name = user_data["full_name"]
         user.email = user_data["email"]
         user.phone = user_data["phone"]
-        user.hash_password(user_data["password"])
+
+        await user.async_hash_password(user_data["password"])
 
         self.db.add(user)
         await self.db.commit()
@@ -124,7 +127,7 @@ class AuthService:
         user = await self.db.execute(select(User).where(User.email == email))
         user = user.scalar_one_or_none()
 
-        if not user or not user.verify_password(password):
+        if not user or not await user.async_verify_password(password):
             service_logger.error(
                 "Failed login attempt: user not found",
                 extra={"email": email}
@@ -304,7 +307,7 @@ class AuthService:
         return user
 
     async def update_user_password(self, *, user: User, new_password: str):
-        user.hash_password(new_password)
+        await user.async_hash_password(new_password)
         self.db.add(user)
         await self.db.commit()
         await self.db.refresh(user)
