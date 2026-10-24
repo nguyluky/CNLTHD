@@ -26,8 +26,7 @@ async def lifespan(app: FastAPI):
 
     try:
         async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
-            service_logger.info("Database tables created successfully.")
+            service_logger.info("Connecting to the database successfully...")
         yield
     finally:
         await engine.dispose()

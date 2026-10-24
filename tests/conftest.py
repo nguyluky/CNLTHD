@@ -1,8 +1,7 @@
 """Shared fixtures; each test receives fresh database, Redis, and email state."""
 
 from datetime import date, datetime, time, timedelta
-from unittest import mock
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 import fakeredis
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -28,16 +27,6 @@ def anyio_backend():
 async def redis_client():
     async with fakeredis.aioredis.FakeRedis(decode_responses=True) as redis_client:
         yield redis_client
-
-
-# @pytest.fixture(autouse=True)
-# async def mock_redis_lifespan(redis_client):
-#     """
-#     Patches redis.asyncio.Redis.from_url so that redis_fastapi's 
-#     lifespan startup initializes with our FakeRedis instance instead of localhost:6379.
-#     """
-#     with patch("redis.asyncio.Redis.from_url", return_value=redis_client):
-#         yield redis_client
 
 
 @pytest.fixture
@@ -80,14 +69,14 @@ async def client(
     app.dependency_overrides[get_async_redis] = override_get_redis
     app.dependency_overrides[get_cache_backend] = lambda: cache
     app.dependency_overrides[get_email_service] = lambda: email_service
+
     try:
         # The fixture owns the test schema; avoid starting the production database lifespan.
-        async with LifespanManager(app) as manager:
-            async with AsyncClient(
-                transport=ASGITransport(app=manager.app),
-                base_url="http://test",
-            ) as client:
-                yield client
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            yield client
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous_overrides)
