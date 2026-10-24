@@ -85,8 +85,8 @@ class BookingServicePolicy:
         filter: BookingFilterParam,
     ):
         """
-        admin thì có thể filter theo customer_id hoặc barber_id,
-        còn customer thì chỉ được filter theo chính mình, barber cũng vậy
+        admins can filter by customer_id or barber_id,
+        customers, barbers can only see their own booking
 
         """
 

@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 import http
 
@@ -20,6 +21,9 @@ from app.core.exception import DomainException
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Router imports register models before creating tables for development.
+
+    monitor_task = asyncio.create_task(monitor_event_loop())
+
     try:
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
@@ -27,6 +31,12 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await engine.dispose()
+        
+        monitor_task.cancel()
+        try:
+            await monitor_task
+        except asyncio.CancelledError:
+            pass
 
 
 origins = [
@@ -117,3 +127,21 @@ async def validation_exception_handler(request, exc: RequestValidationError):
         details=sanitized_errors,
     )
 
+
+async def monitor_event_loop(interval: float = 0.05) -> None:
+    loop = asyncio.get_running_loop()
+    expected = loop.time() + interval
+
+    while True:
+        await asyncio.sleep(interval)
+
+        now = loop.time()
+        lag = now - expected
+
+        if lag > 0.1:
+            service_logger.warning(
+                "Event loop lag detected: %.1f ms",
+                lag * 1000,
+            )
+
+        expected = now + interval

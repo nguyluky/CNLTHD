@@ -37,14 +37,14 @@ class UserService:
         self, current_user: User, old_password: str, new_password: PasswordStr
     ):
         # verify password
-        if not current_user.verify_password(old_password):
+        if not await current_user.async_verify_password(old_password):
             service_logger.error(
                 "User password update failed: Old password is invalid",
                 extra={"user_id": current_user.id}
             )
             raise InvalidOldPasswordException("Old password is invalid")
 
-        current_user.hash_password(new_password)
+        await current_user.async_hash_password(new_password)
         self.db.add(current_user)
         await self.db.commit()
 
