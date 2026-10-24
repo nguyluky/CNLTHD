@@ -143,7 +143,7 @@ async def register_user(session_factory):
                 phone=data["phone"],
                 role=data.get("role", UserRole.customer)
             )
-            user.hash_password(data["password"])
+            await user.async_hash_password(data["password"])
             db.add(user)
             await db.commit()
             await db.refresh(user)
@@ -181,7 +181,7 @@ async def customer_userA(session_factory, customer_dataA):
             phone = customer_dataA["phone"],
             role=UserRole.customer
         )
-        user.hash_password(customer_dataA["password"])
+        await user.async_hash_password(customer_dataA["password"])
         db.add(user)
         await db.commit()
 
@@ -196,7 +196,7 @@ async def barber_userA(session_factory, barber_dataA):
             phone = barber_dataA["phone"],
             role=UserRole.barber
         )
-        user.hash_password(barber_dataA["password"])
+        await user.async_hash_password(barber_dataA["password"])
         db.add(user)
         await db.commit()
 
@@ -211,7 +211,7 @@ async def customer_userB(session_factory, customer_dataB):
             phone = customer_dataB["phone"],
             role=UserRole.customer
         )
-        user.hash_password(customer_dataB["password"])
+        await user.async_hash_password(customer_dataB["password"])
         db.add(user)
         await db.commit()
 
@@ -226,7 +226,7 @@ async def barber_userB(session_factory, barber_dataB):
             phone = barber_dataB["phone"],
             role=UserRole.barber
         )
-        user.hash_password(barber_dataB["password"])
+        await user.async_hash_password(barber_dataB["password"])
         db.add(user)
         await db.commit()
 
@@ -241,7 +241,7 @@ async def admin_user(session_factory, admin_data):
             phone = admin_data["phone"],
             role=UserRole.admin
         )
-        user.hash_password(admin_data["password"])
+        await user.async_hash_password(admin_data["password"])
         db.add(user)
         await db.commit()
 
@@ -251,6 +251,7 @@ async def admin_user(session_factory, admin_data):
 async def sample_services(session_factory):
     services = [
         Service(
+            id=1,
             name="Cắt tóc nam",
             description="Cắt tóc nam cơ bản",
             price=Decimal("100000"),
@@ -258,6 +259,7 @@ async def sample_services(session_factory):
             is_active=True,
         ),
         Service(
+            id=2,
             name="Cắt tóc nữ",
             description="Cắt tóc nữ cơ bản",
             price=Decimal("120000"),
@@ -265,6 +267,7 @@ async def sample_services(session_factory):
             is_active=True,
         ),
         Service(
+            id=3,
             name="Cắt tóc trẻ em",
             description=None,
             price=Decimal("80000"),

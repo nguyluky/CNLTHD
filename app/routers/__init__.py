@@ -7,11 +7,11 @@ tự cảnh báo lỗi khi chưa handle exception kết thừa tư ApiException
 import importlib, os
 from typing import Callable
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from collections import deque
 
 from app.core.helper import camel_to_upper_snake_case
-from app.core.logger import logger
+from app.core.logger import service_logger
 from app.schemas.common import create_error_response
 from app.core.exception import map_exception as default_map_exception, DomainException
 
@@ -29,17 +29,17 @@ for file in _files:
         if hasattr(module, "router"):
             _routers.append(module.router)
         else:
-            logger.warning(f"Module {module_name} does not have a 'router' attribute.")
+            service_logger.warning(f"Module {module_name} does not have a 'router' attribute.")
 
         if hasattr(module, "map_exception"):
 
             # map_exception.update(module.map_exception)
             for exc_type, handler in module.map_exception.items():
                 if exc_type in map_exception:
-                    logger.warning(f"Exception {exc_type.__name__} is already mapped. Overwriting with new handler from {module_name}.")
+                    service_logger.warning(f"Exception {exc_type.__name__} is already mapped. Overwriting with new handler from {module_name}.")
                 map_exception[exc_type] = handler
         else:
-            logger.warning(f"Module {module_name} does not have a 'map_exception' attribute.")
+            service_logger.warning(f"Module {module_name} does not have a 'map_exception' attribute.")
 
 
 def _get_all_subclasses(cls):
@@ -63,14 +63,14 @@ _existing_exceptions = [exc for exc in _all_exceptions if any(exc.__name__ == ex
 exception_names = [exc.__name__ for exc in _all_exceptions]
 duplicate_exceptions = set(name for name in exception_names if exception_names.count(name) > 1)
 if duplicate_exceptions:
-    logger.warning(f"The error classes have duplicate names: {', '.join(duplicate_exceptions)}. please move to share.py or rename them to avoid confusion.")
+    service_logger.warning(f"The error classes have duplicate names: {', '.join(duplicate_exceptions)}. please move to share.py or rename them to avoid confusion.")
 
 
 # kiểm tra xem có exception nào chưa được handle không
 _unhandled_exceptions = [exc for exc in _all_exceptions if exc not in _existing_exceptions]
 if _unhandled_exceptions:
     unhandled_exception_names = [exc.__name__ for exc in _unhandled_exceptions]
-    logger.warning(f"The following error classes are not handled in any router: {', '.join(unhandled_exception_names)}")
+    service_logger.warning(f"The following error classes are not handled in any router: {', '.join(unhandled_exception_names)}")
 
 router = APIRouter()
 for r in _routers:

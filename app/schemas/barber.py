@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.common import FilterParamBase
 
 
@@ -14,10 +14,18 @@ class BarberOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class BarberFilterParam(FilterParamBase):
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    is_active: Optional[bool] = None
+    full_name: Optional[str] = Field(
+        default=None, description="Filter by barber's full name."
+    )
+    email: Optional[str] = Field(
+        default=None, description="Filter by barber's email."
+    )
+    phone: Optional[str] = Field(
+        default=None, description="Filter by barber's phone."
+    )
+    is_active: Optional[bool] = Field(
+        default=None, description="Filter by active status."
+    )
 
     
         

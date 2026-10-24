@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import User, UserRole, get_db
 from app.core.exception import DomainException, UserNotFoundException
+from app.routers import service_logger
 
 
 class _AdminException(DomainException):
@@ -72,6 +73,10 @@ class AdminService:
             select(User).where(or_(User.email == email, User.phone == phone))
         )
         if existing_user:
+            service_logger.error(
+                "Failed to create user: Email or phone already exists", 
+                extra={"email": email, "phone": phone}
+            )
             raise UserAlreadyExistsException("Email or phone already registered")
 
         new_user = User()
@@ -79,10 +84,16 @@ class AdminService:
         new_user.email = email
         new_user.phone = phone
         new_user.role = role
-        new_user.hash_password(password)
+
+        await new_user.async_hash_password(password)
         self.db.add(new_user)
         await self.db.commit()
         await self.db.refresh(new_user)
+
+        service_logger.info(
+            "User created successfully", 
+            extra={"user_id": new_user.id, "email": email, "phone": phone}
+        )
         return new_user
     
     async def update_user(
@@ -90,6 +101,10 @@ class AdminService:
     ):
         user = await self.db.scalar(select(User).where(User.id == user_id))
         if not user:
+            service_logger.error(
+                "User lookup failed: Record not found", 
+                extra={"user_id": user_id}
+            )
             raise UserNotFoundException("User not found")
 
         # check if email or phone already exists for other users
@@ -99,6 +114,10 @@ class AdminService:
             )
         )
         if existing_user:
+            service_logger.error(
+                "Failed to update user's profile: Email or phone already exists", 
+                extra={"email": email, "phone": phone}
+            )
             raise UserAlreadyExistsException("Email or phone already registered")
 
         if full_name is not None:
@@ -110,10 +129,15 @@ class AdminService:
         if role is not None:
             user.role = role
         if password is not None:
-            user.hash_password(password)
+            await user.async_hash_password(password)
 
         await self.db.commit()
         await self.db.refresh(user)
+
+        service_logger.info(
+            "User updated successfully",
+            extra={"user_id": user.id}
+        )
         return user
 
 

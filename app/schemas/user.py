@@ -1,6 +1,6 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, model_validator
-from app.schemas.common import CustomEmailStr, CustomPhoneStr, FullNameStr, PasswordStr
+from pydantic import BaseModel, ConfigDict, model_validator, Field
+from app.schemas.common import CustomEmailStr, CustomPhoneStr, SanitizedFullNameStr, PasswordStr
 
 
 class UserOut(BaseModel):
@@ -15,14 +15,22 @@ class UserOut(BaseModel):
 
 
 class UpdateProfileIn(BaseModel):
-    full_name: Optional[FullNameStr] = None
-    email: Optional[CustomEmailStr] = None
-    phone: Optional[CustomPhoneStr] = None
+    full_name: Optional[SanitizedFullNameStr] = Field(
+        default=None, description="Updated full name."
+    )
+    email: Optional[CustomEmailStr] = Field(
+        default=None, description="Updated email address."
+    )
+    phone: Optional[CustomPhoneStr] = Field(
+        default=None, description="Updated phone number."
+    )
 
 
 class UpdatePasswordIn(BaseModel):
-    old_password: str
-    new_password: PasswordStr
+    old_password: str = Field(..., description="The user's current password.")
+    new_password: PasswordStr = Field(
+        ..., description="The new password to set (must meet security rules)."
+    )
 
     @model_validator(mode="after")
     def verify_password_match(self):

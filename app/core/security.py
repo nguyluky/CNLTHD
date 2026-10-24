@@ -9,6 +9,8 @@ import uuid
 import jwt
 from pwdlib import PasswordHash
 import hashlib
+from html import escape
+from nh3 import clean
 
 
 from app.core.config import configEnv
@@ -44,3 +46,15 @@ def create_access_token(data: dict, expires_delta: timedelta):
 def decode_token(token: str):
     payload = jwt.decode(token, configEnv.SECRET_KEY, algorithms=[configEnv.ALGORITHM])
     return payload
+
+
+
+def sanitize_plain_text(v):
+    if isinstance(v, str):
+        return escape(v).strip()
+    return v
+
+def sanitize_rich_text(v):
+    if isinstance(v, str):
+        return clean(v).strip()
+    return v

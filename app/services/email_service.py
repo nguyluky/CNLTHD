@@ -1,5 +1,5 @@
 from bird import APIError, AsyncBird
-from app.core.logger import logger
+from app.core.logger import service_logger
 from app.core.config import configEnv
 
 
@@ -57,13 +57,13 @@ class EmailService(EmailServiceInterface):
             response = await self.client.email.send(
                 from_="noreply@nguyluky.dev", to=[to], subject=subject, html=html
             )
-            logger.info(f"Email sent successfully: {response}")
+            service_logger.info(f"Email sent successfully: {response}")
             return {
                 "id": response.id,
                 "status": response.status,
             }
         except APIError as e:
-            logger.error(f"Failed to send email: {e}")
+            service_logger.error(f"Failed to send email: {e}")
             return None
 
     async def send_confirmation_email(
@@ -119,7 +119,7 @@ class EmailServiceFactory:
 
 class MockEmailService(EmailServiceInterface):
     async def send_email(self, to: str, subject: str, html: str) -> dict | None:
-        logger.info(f"Mock send email to {to} with subject '{subject}'")
+        service_logger.info(f"Mock send email to {to} with subject '{subject}'")
         return {
             "id": "mock_id",
             "status": "mock_status",
@@ -128,7 +128,7 @@ class MockEmailService(EmailServiceInterface):
     async def send_confirmation_email(
         self, to: str, confirmation_link: str
     ) -> dict | None:
-        logger.info(
+        service_logger.info(
             f"Mock send confirmation email to {to} with link '{confirmation_link}'"
         )
         return {
@@ -138,7 +138,7 @@ class MockEmailService(EmailServiceInterface):
     async def send_reset_password_email(
         self, to: str, reset_link: str
     ) -> dict | None:
-        logger.info(
+        service_logger.info(
             f"Mock send reset password email to {to} with link '{reset_link}'"
         )
         return {

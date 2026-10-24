@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy import select
 
 from app.core.database import User, get_db
+from app.routers import service_logger
 from app.schemas.common import PasswordStr
 from app.core.exception import DomainException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,12 +37,21 @@ class UserService:
         self, current_user: User, old_password: str, new_password: PasswordStr
     ):
         # verify password
-        if not current_user.verify_password(old_password):
+        if not await current_user.async_verify_password(old_password):
+            service_logger.error(
+                "User password update failed: Old password is invalid",
+                extra={"user_id": current_user.id}
+            )
             raise InvalidOldPasswordException("Old password is invalid")
 
-        current_user.hash_password(new_password)
+        await current_user.async_hash_password(new_password)
         self.db.add(current_user)
         await self.db.commit()
+
+        service_logger.info(
+            "User password update successfully",
+            extra={"user_id": current_user.id}
+        )
 
     async def update_current_user_profile(
         self,
@@ -57,6 +67,10 @@ class UserService:
             )
 
             if phone_exists:
+                service_logger.error(
+                    "User profile update failed: Phone number already exists",
+                    extra={"user_id": current_user.id, "phone": update_data["phone"]}
+                )
                 raise PhoneExistsException(
                     "This phone number is currently being used by a different user"
                 )
@@ -69,6 +83,10 @@ class UserService:
             )
 
             if email_exists:
+                service_logger.error(
+                    "User profile update failed: Email already exists",
+                    extra={"user_id": current_user.id, "email": update_data["email"]}
+                )
                 raise EmailExistsException(
                     "This email is currently being used by a different user"
                 )
@@ -81,6 +99,11 @@ class UserService:
         self.db.add(current_user)
         await self.db.commit()
         await self.db.refresh(current_user)
+
+        service_logger.info(
+            "User profile update successfully",
+            extra={"user_id": current_user.id}
+        )
 
         return current_user
 

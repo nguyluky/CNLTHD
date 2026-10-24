@@ -1,12 +1,5 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.core.database import User, get_db
-from app.schemas.common import create_error_response
-from app.core.helper import camel_to_upper_snake_case
+from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_active_admin
 from app.schemas.common import PageResponse, create_page_response
 from app.schemas.user import UserOut
@@ -26,7 +19,11 @@ router = APIRouter(
 )
 
 
-@router.get("/users", description="Get all users", response_model=PageResponse[UserOut])
+@router.get(
+    "/users", 
+    summary="Get all users.", 
+    response_model=PageResponse[UserOut]
+)
 async def get_all_users(
     filter: Annotated[GetAllUsersFilterIn, Query()], admin_service: AdminServiceDep
 ):
@@ -34,7 +31,7 @@ async def get_all_users(
     limit = filter.limit
     offset = (filter.page - 1) * limit
 
-    users, total = await admin_service.get_all_users(
+    items, total = await admin_service.get_all_users(
         full_name=filter.full_name,
         email=filter.email,
         phone=filter.phone,
@@ -44,7 +41,7 @@ async def get_all_users(
     )
 
     return create_page_response(
-        items=users,
+        items=items,
         total=total or 0,
         page=filter.page,
         size=filter.limit,
@@ -52,9 +49,19 @@ async def get_all_users(
 
 
 @router.post(
-    "/users", description="Create a new user", status_code=201, response_model=UserOut
+    "/users", 
+    summary="Create a new user.", 
+    status_code=201, 
+    response_model=UserOut
 )
 async def create_user(user: CreateUserIn, admin_service: AdminServiceDep):
+    """
+    Create a new user.
+    - **full_name**: new user full name
+    - **email**: new user email
+    - **phone**: new user phone
+    - **role**: new user role
+    """
     new_user = await admin_service.create_user(
         full_name=user.full_name,
         email=user.email,
@@ -65,12 +72,23 @@ async def create_user(user: CreateUserIn, admin_service: AdminServiceDep):
     return new_user
 
 
-@router.patch("/users/{user_id}", description="Update a user", response_model=UserOut)
+@router.patch(
+    "/users/{user_id}", 
+    summary="Update a user.", 
+    response_model=UserOut
+)
 async def update_user(
     user_id: int,
     user_update: UserUpdateIn,
     admin_service: AdminServiceDep,
 ):
+    """
+    Update a specified user.
+    - **full_name**: Optional new full name
+    - **email**: Optional new email
+    - **phone**: Optional new phone
+    - **role**: Optional new role
+    """
     user = await admin_service.update_user(
         user_id,
         full_name=user_update.full_name,

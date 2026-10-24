@@ -5,11 +5,11 @@ from typing_extensions import Annotated
 from fastapi import Form
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from app.schemas.common import CustomEmailStr, CustomPhoneStr, FullNameStr, PasswordStr
+from app.schemas.common import CustomEmailStr, CustomPhoneStr, SanitizedFullNameStr, PasswordStr
 
 
 class RegisterIn(BaseModel):
-    full_name: FullNameStr
+    full_name: SanitizedFullNameStr
     email: CustomEmailStr
     password: PasswordStr
     phone: CustomPhoneStr
