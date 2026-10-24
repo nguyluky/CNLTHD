@@ -9,4 +9,5 @@
     "python.analysis.autoImportCompletions": true,
     "python.analysis.languageServerMode": "full",
     "search.useIgnoreFiles": false,
+    "9router-for-github-copilot.serverUrl": "http://100.114.148.14:20128/v1",
 }

@@ -21,7 +21,6 @@ async def lifespan(app: FastAPI):
     # Router imports register models before creating tables for development.
     try:
         async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
             logger.info("Database tables created successfully.")
         yield
     finally:
