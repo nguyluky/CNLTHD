@@ -7,9 +7,8 @@ from app.schemas.barber import BarberFilterParam, BarberOut
 from app.schemas.barber_schedule import AvailableSlotOut
 from app.schemas.common import PageResponse, create_page_response
 from typing import Annotated
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from app.services.barber_service import *
-from redis_fastapi import cache, cache_evict, cache_put, default_key_builder
 
 router = APIRouter(prefix="/barbers", tags=["Barber"])
 
@@ -62,6 +61,7 @@ async def get_available_slots(
     barber_id: int,
     barber_service: BarberServiceDep,
     redis: CacheBackendDep,
+    response: Response,
     booking_date: date = Query(..., description="Specified date"),
     slot_duration: int = Query(30, description="specified slot duration in minutes"),
 ):
@@ -78,15 +78,18 @@ async def get_available_slots(
     cached_data = await redis.get(redis_key, eviction_group="available_slot")
     if cached_data:
         available_slots = json.loads(cached_data)
+        response.headers["X-Cache"] = "HIT"
+    else:
+        available_slots = await barber_service.get_available_slot_minutes(
+            barber_id=barber_id, target_date=booking_date, slot_duration=slot_duration
+        )
 
-    available_slots = await barber_service.get_available_slot_minutes(
-        barber_id=barber_id, target_date=booking_date, slot_duration=slot_duration
-    )
+        # cache into redis
+        await redis.set(
+            redis_key, json.dumps(available_slots), ttl=300, eviction_group="available_slot"
+        )
 
-    # cache into redis
-    await redis.set(
-        redis_key, json.dumps(available_slots), ttl=300, eviction_group="available_slot"
-    )
+        response.headers["X-Cache"] = "MISS"
 
     return {
         "booking_date": booking_date,

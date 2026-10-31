@@ -1,13 +1,13 @@
 from datetime import date, datetime, time, timedelta
-import math
-from typing import Annotated
 from decimal import Decimal
+from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from app.core.database import (
+    BarberSchedule,
     Booking,
     BookingStatus,
     Service,
@@ -19,7 +19,7 @@ from app.dependencies import get_current_active_user
 from app.routers import service_logger
 from app.schemas.booking import BookingFilterParam
 from app.core.exception import DomainException
-from app.seeder import BarberSchedule
+from app.services.barber_service import BUFFER_MINUTES
 
 
 class _BookingServiceException(DomainException):
@@ -189,14 +189,13 @@ class BookingService:
         end_time = end_dt.time()
 
         try:
-            await self.check_for_valid_booking_date(
+            schedules = await self.check_for_valid_booking_date(
                 barber_id=barber_id, 
                 booking_date=booking_date,
             )
 
-            await self.check_for_within_schedule(
-                barber_id=barber_id, 
-                booking_date=booking_date, 
+            self.check_for_within_schedule(
+                schedules=schedules, 
                 start_time=start_time, 
                 end_time=end_time
             )
@@ -335,9 +334,12 @@ class BookingService:
             end_time = end_dt.time()
 
             try: 
-                await self.check_for_within_schedule(
-                    barber_id=booking.barber_id, 
-                    booking_date=booking.booking_date, 
+                schedules = await self.check_for_valid_booking_date(
+                    booking_date=booking.booking_date,
+                    barber_id=booking.barber_id
+                )
+                self.check_for_within_schedule(
+                    schedules=schedules,
                     start_time=start_time, 
                     end_time=end_time
                 )
@@ -383,60 +385,77 @@ class BookingService:
 
         return booking
 
-    async def check_for_valid_booking_date(self, booking_date: date, barber_id: int):
-        barber_schedule = await self.db.scalar(
-            select(BarberSchedule)
-            .where(
-                BarberSchedule.barber_id == barber_id,
-                BarberSchedule.date_of_week == booking_date.weekday()
+    async def check_for_valid_booking_date(
+        self, 
+        booking_date: date, 
+        barber_id: int
+    ) -> list[BarberSchedule]:
+        schedules = (
+            await self.db.scalars(
+                select(BarberSchedule).where(
+                    BarberSchedule.barber_id == barber_id,
+                    BarberSchedule.date_of_week == booking_date.weekday(),
+                    BarberSchedule.is_off.is_(False),
+                )
             )
-        )
+        ).all()
 
-        if not barber_schedule:
+        if not schedules:
             raise RequestedBarberDoesNotWorkInRequestedBookingDateException(
                 "The requested barber does not work on the requested booking date"
             )
 
-        return barber_schedule
+        return list(schedules)
 
-    async def check_for_within_schedule(self, booking_date: date, barber_id: int, start_time: time, end_time: time):
-        barber_schedule = await self.db.scalar(
-            select(BarberSchedule)
-            .where(
-                BarberSchedule.barber_id == barber_id,
-                BarberSchedule.date_of_week == booking_date.weekday()
-            )
+    def check_for_within_schedule(
+        self, 
+        schedules: list[BarberSchedule],
+        start_time: time,
+        end_time: time,
+    ):
+        is_within_schedule = any(
+            schedule.start_time <= start_time
+            and end_time <= schedule.end_time
+            for schedule in schedules
         )
 
-        if barber_schedule is not None:
-            schedule_start = barber_schedule.start_time
-            schedule_end = barber_schedule.end_time
-            is_within_schedule = schedule_start < start_time and end_time < schedule_end
-            if not is_within_schedule:
-                raise RequestedBookingTimeIsNotWithinScheduleException(
-                    "The requested booking time is not within schedule"
-                )
+        if not is_within_schedule:
+            raise RequestedBookingTimeIsNotWithinScheduleException(
+                "The requested booking time is not within schedule"
+            )
 
     async def check_for_booking_overlapping(self, booking_date: date, barber_id: int, start_time: time, end_time: time):
-        existed_bookings = (await self.db.scalars(
+        existing_bookings = (await self.db.scalars(
             select(Booking)
             .where(
                 Booking.barber_id == barber_id,
-                Booking.booking_date == booking_date
+                Booking.booking_date == booking_date,
+                Booking.status.in_([BookingStatus.pending,BookingStatus.confirmed,])
             )
         )).all()
 
-        if existed_bookings is not None or len(existed_bookings) > 0:
-            is_overlapping = any(
-                max(start_time, b.start_time) < min(end_time, b.end_time)
-                for b in existed_bookings
-            )
+        requested_start = datetime.combine(booking_date, start_time)
+        requested_end = datetime.combine(booking_date, end_time)
 
-            if is_overlapping:
-                raise RequestedBookingTimeOverlappedWithExistedBookingException(
-                    "The requested booking time is overlapping with existed bookings"
-                )
-        
+        is_overlapping = any(
+            max(
+                requested_start,
+                datetime.combine(booking_date, booking.start_time),
+            )
+            <
+            min(
+                requested_end,
+                datetime.combine(booking_date, booking.end_time)
+                + timedelta(minutes=BUFFER_MINUTES),
+            )
+            for booking in existing_bookings
+        )
+
+        if is_overlapping:
+            raise RequestedBookingTimeOverlappedWithExistedBookingException(
+                "The requested booking time is overlapping with existed bookings"
+            )
+            
 
 async def get_booking_service(db: AsyncSession = Depends(get_db)):
     return BookingService(db)

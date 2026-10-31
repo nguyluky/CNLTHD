@@ -1,6 +1,7 @@
 import asyncio
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+
 from app.core.logger import service_logger
 from app.core.database import (
     BarberSchedule,
@@ -15,151 +16,370 @@ from app.core.database import (
     engine,
 )
 from app.core.config import configEnv
+from app.main import configure_logging, shutdown_logging
 
+
+# =========================================================
+# SEED CONFIGURATION
+# =========================================================
+
+BARBER_COUNT = 20
+CUSTOMER_COUNT = 50
+HISTORICAL_BOOKING_DAYS = 14
+
+ADMIN_PASSWORD = "Admin@123"
+BARBER_PASSWORD = "Barber@123"
+CUSTOMER_PASSWORD = "Customer@123"
+
+
+# =========================================================
+# SERVICES
+# =========================================================
+
+SERVICE_DATA = [
+    {
+        "name": "Cắt tóc nam tiêu chuẩn",
+        "description": "Cắt tóc, cạo mặt, vuốt sáp",
+        "price": Decimal("70000.00"),
+        "duration_minutes": 30,
+        "is_active": True,
+    },
+    {
+        "name": "Gội đầu thư giãn",
+        "description": "Gội đầu massage 20 phút",
+        "price": Decimal("40000.00"),
+        "duration_minutes": 20,
+        "is_active": True,
+    },
+    {
+        "name": "Uốn tóc",
+        "description": "Uốn phồng, uốn xoăn",
+        "price": Decimal("250000.00"),
+        "duration_minutes": 90,
+        "is_active": True,
+    },
+    {
+        "name": "Nhuộm tóc",
+        "description": "Nhuộm màu thời trang",
+        "price": Decimal("350000.00"),
+        "duration_minutes": 120,
+        "is_active": True,
+    },
+    {
+        "name": "Hấp phục hồi tóc",
+        "description": "Chăm sóc và phục hồi tóc hư tổn",
+        "price": Decimal("150000.00"),
+        "duration_minutes": 45,
+        "is_active": True,
+    },
+    {
+        "name": "Cạo râu",
+        "description": "Cạo râu và chăm sóc da mặt",
+        "price": Decimal("50000.00"),
+        "duration_minutes": 20,
+        "is_active": True,
+    },
+    {
+        "name": "Cắt tóc trẻ em",
+        "description": "Dịch vụ cắt tóc dành cho trẻ em",
+        "price": Decimal("60000.00"),
+        "duration_minutes": 30,
+        "is_active": True,
+    },
+    {
+        "name": "Dịch vụ ngừng kinh doanh",
+        "description": "Dịch vụ dùng để kiểm tra lọc dịch vụ inactive",
+        "price": Decimal("100000.00"),
+        "duration_minutes": 30,
+        "is_active": False,
+    },
+]
+
+
+# =========================================================
+# DATABASE RESET
+# =========================================================
 
 async def reset_database():
-    service_logger.info("Clearing Database...")
+    service_logger.warning("Clearing Database...")
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
+
     service_logger.info("Database cleared")
 
+
+# =========================================================
+# USER FACTORY
+# =========================================================
+
+async def create_user(
+    full_name: str,
+    email: str,
+    phone: str,
+    role: UserRole,
+    password: str,
+):
+    user = User(
+        full_name=full_name,
+        email=email,
+        phone=phone,
+        role=role,
+    )
+
+    await user.async_hash_password(password)
+
+    return user
+
+
+# =========================================================
+# SEED DATA
+# =========================================================
+
 async def seed_data():
-    service_logger.info(f"Seeding Database: {configEnv.DATABASE_URL}")
+    service_logger.info(
+        f"Seeding Database: {configEnv.DATABASE_URL}"
+    )
 
     await reset_database()
 
     async with SessionLocal() as db:
-        service_logger.info("Currently seeding Database...")
+        service_logger.info("Seeding services...")
 
-        # Services
+        # -------------------------------------------------
+        # 1. SERVICES
+        # -------------------------------------------------
+
         services = [
-            Service(
-                name="Cắt tóc nam tiêu chuẩn",
-                description="Cắt tóc, cạo mặt, vuốt sáp",
-                price=Decimal("70000.00"),
-                duration_minutes=30,
-            ),
-            Service(
-                name="Gội đầu thư giãn",
-                description="Gội đầu massage 20 phút",
-                price=Decimal("40000.00"),
-                duration_minutes=20,
-            ),
-            Service(
-                name="Uốn tóc",
-                description="Uốn phồng, uốn xoăn",
-                price=Decimal("250000.00"),
-                duration_minutes=90,
-            ),
+            Service(**data)
+            for data in SERVICE_DATA
         ]
+
         db.add_all(services)
         await db.flush()
 
-        # Users
-        admin = User(
+        active_services = [
+            service
+            for service in services
+            if service.is_active
+        ]
+
+        # -------------------------------------------------
+        # 2. ADMIN
+        # -------------------------------------------------
+
+        service_logger.info("Seeding admin...")
+
+        admin = await create_user(
             full_name="System Admin",
             email="admin@salon.com",
             phone="0900000000",
             role=UserRole.admin,
+            password=ADMIN_PASSWORD,
         )
-        await admin.async_hash_password("Admin@123")
 
-        barber1 = User(
-            full_name="Barber John",
-            email="john@salon.com",
-            phone="0911111111",
-            role=UserRole.barber,
-        )
-        await barber1.async_hash_password("Barber@123")
+        db.add(admin)
 
-        barber2 = User(
-            full_name="Barber Wick",
-            email="wick@salon.com",
-            phone="0922222222",
-            role=UserRole.barber,
-        )
-        await barber2.async_hash_password("Barber@123")
+        # -------------------------------------------------
+        # 3. BARBERS
+        # -------------------------------------------------
 
-        customer1 = User(
-            full_name="Khách Hàng A",
-            email="khachhanga@gmail.com",
-            phone="0933333333",
-            role=UserRole.customer,
+        service_logger.info(
+            f"Seeding {BARBER_COUNT} barbers..."
         )
-        await customer1.async_hash_password("CustomerA@123")
-        customer2 = User(
-            full_name="Khách Hàng B",
-            email="khachhangb@gmail.com",
-            phone="0944444444",
-            role=UserRole.customer,
-        )
-        await customer2.async_hash_password("CustomerB@123")
 
-        db.add_all([admin, barber1, barber2, customer1, customer2])
+        barbers = []
+
+        for index in range(1, BARBER_COUNT + 1):
+            barber = await create_user(
+                full_name=f"Barber {index:03d}",
+                email=f"barber{index:03d}@salon.test",
+                phone=f"091{index:07d}",
+                role=UserRole.barber,
+                password=BARBER_PASSWORD,
+            )
+
+            barbers.append(barber)
+
+        db.add_all(barbers)
+
+        # -------------------------------------------------
+        # 4. CUSTOMERS
+        # -------------------------------------------------
+
+        service_logger.info(
+            f"Seeding {CUSTOMER_COUNT} customers..."
+        )
+
+        customers = []
+
+        for index in range(1, CUSTOMER_COUNT + 1):
+            full_name = f"Customer {index:03d}"
+            email = f"customer{index:03d}@salon.test"
+            phone = f"093{index:07d}"
+
+            customer = await create_user(
+                full_name=full_name,
+                email=email,
+                phone=phone,
+                role=UserRole.customer,
+                password=CUSTOMER_PASSWORD,
+            )
+
+            customers.append(customer)
+
+        db.add_all(customers)
+
+        # Ensure user IDs are available.
         await db.flush()
 
-        # Schedules
-        schedules = []
-        # Baber 1 ranges from monday (0) to friday (4)
-        for day in range(5):
-            schedules.append(
-                BarberSchedule(
-                    barber_id=barber1.id,
-                    date_of_week=day,
-                    start_time=time(8, 0),
-                    end_time=time(18, 0),
-                )
-            )
+        # -------------------------------------------------
+        # 5. BARBER SCHEDULES
+        # -------------------------------------------------
 
-        # Barber 2 ranges from wednesday (2) to sunday (6)
-        for day in range(2, 7):
-            schedules.append(
-                BarberSchedule(
-                    barber_id=barber2.id,
-                    date_of_week=day,
-                    start_time=time(13, 0),
-                    end_time=time(21, 0),
+        service_logger.info("Seeding barber schedules...")
+
+        schedules = []
+
+        for barber in barbers:
+            # Every barber works from Monday to Sunday.
+            for day in range(7):
+                schedules.append(
+                    BarberSchedule(
+                        barber_id=barber.id,
+                        date_of_week=day,
+                        start_time=time(8, 0),
+                        end_time=time(20, 0),
+                        is_off=False,
+                    )
                 )
-            )
 
         db.add_all(schedules)
         await db.flush()
 
-        # Bookings
-        # Customer a scheduled Cắt tóc (70k) + Gội đầu (40k) = 110k
-        total_booking_price = services[0].price + services[1].price
+        # -------------------------------------------------
+        # 6. HISTORICAL BOOKINGS
+        # -------------------------------------------------
 
-        booking1 = Booking(
-            customer_id=customer1.id,
-            barber_id=barber1.id,
-            booking_date=date.today() + timedelta(days=1),
-            start_time=time(9, 0),
-            end_time=time(9, 50),
-            total_price=total_booking_price,
-            status=BookingStatus.confirmed,
+        service_logger.info(
+            f"Seeding historical bookings for "
+            f"{HISTORICAL_BOOKING_DAYS} days..."
         )
-        db.add(booking1)
+
+        booking_records = []
+
+        for day_offset in range(1, HISTORICAL_BOOKING_DAYS + 1):
+
+            # All sample bookings are in the past.
+            booking_date = date.today() - timedelta(
+                days=day_offset
+            )
+
+            for customer_index, customer in enumerate(customers):
+
+                # Distribute customers among barbers.
+                barber_index = customer_index % BARBER_COUNT
+                barber = barbers[barber_index]
+
+                # Each barber receives up to 3 bookings per day.
+                # Start times: 09:00, 12:00, 15:00.
+                slot_index = customer_index // BARBER_COUNT
+
+                start_hour = 9 + slot_index * 3
+                start_time = time(start_hour, 0)
+
+                # Distribute services among bookings.
+                service_index = (
+                    customer_index + day_offset
+                ) % len(active_services)
+
+                service = active_services[service_index]
+
+                end_time = (
+                    datetime.combine(
+                        booking_date,
+                        start_time,
+                    )
+                    + timedelta(
+                        minutes=service.duration_minutes
+                    )
+                ).time()
+
+                booking = Booking(
+                    customer_id=customer.id,
+                    barber_id=barber.id,
+                    booking_date=booking_date,
+                    start_time=start_time,
+                    end_time=end_time,
+                    total_price=service.price,
+                    status=BookingStatus.completed,
+                )
+
+                booking_records.append(
+                    (booking, service)
+                )
+
+        # Insert bookings first to obtain booking IDs.
+        bookings = [
+            booking
+            for booking, _ in booking_records
+        ]
+
+        db.add_all(bookings)
         await db.flush()
 
-        # Booking_Service
+        # -------------------------------------------------
+        # 7. BOOKING SERVICES
+        # -------------------------------------------------
+
         booking_services = [
             BookingService(
-                booking_id=booking1.id,
-                service_id=services[0].id,
-                price_at_booking=services[0].price,
-            ),
-            BookingService(
-                booking_id=booking1.id,
-                service_id=services[1].id,
-                price_at_booking=services[1].price,
-            ),
+                booking_id=booking.id,
+                service_id=service.id,
+                price_at_booking=service.price,
+            )
+            for booking, service in booking_records
         ]
+
         db.add_all(booking_services)
 
+        # -------------------------------------------------
+        # 8. COMMIT
+        # -------------------------------------------------
+
         await db.commit()
-        service_logger.info("Seeding finished")
+
+        service_logger.info(
+            "Seeding completed successfully."
+        )
+
+        service_logger.info(
+            f"""
+            Seed summary:
+            - Admin: 1
+            - Barbers: {len(barbers)}
+            - Customers: {len(customers)}
+            - Services: {len(services)}
+            - Active services: {len(active_services)}
+            - Barber schedules: {len(schedules)}
+            - Historical bookings: {len(bookings)}
+            - Booking services: {len(booking_services)}
+            """
+        )
+
+
+def main():
+    configure_logging()
+
+    try:
+        asyncio.run(seed_data())
+    except Exception:
+        service_logger.exception("Database seeding failed")
+        raise
+    finally:
+        shutdown_logging()
 
 
 if __name__ == "__main__":
-    asyncio.run(seed_data())
+    main()

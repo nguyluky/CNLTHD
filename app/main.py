@@ -10,20 +10,21 @@ from redis_fastapi import FastAPIRedis
 
 from app.core.middleware import AccessLoggingMiddleware
 from app.schemas.common import create_error_response, ErrorModel, ValidationErrorModel, create_validation_error_response
-from app.core.logger import service_logger
+from app.core.logger import configure_logging, service_logger, shutdown_logging
 from app.core.config import configEnv
 from app.core.database import Base
 from app.core.database import engine
-from app.routers import router, exception_handler
+from app.routers import router, domain_exception_handler
 from app.core.exception import DomainException
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Router imports register models before creating tables for development.
-
+    # Start logging before initializing application components.
+    configure_logging()
     monitor_task = asyncio.create_task(monitor_event_loop())
 
+    # Router imports register models before creating tables for development.
     try:
         async with engine.begin() as connection:
             service_logger.info("Connecting to the database successfully...")
@@ -36,6 +37,8 @@ async def lifespan(app: FastAPI):
             await monitor_task
         except asyncio.CancelledError:
             pass
+
+        await asyncio.to_thread(shutdown_logging)
 
 
 origins = [
@@ -73,7 +76,7 @@ app.include_router(router)
 
 app.add_exception_handler(
     DomainException,
-    exception_handler
+    domain_exception_handler
 )
 
 @app.get("/health")

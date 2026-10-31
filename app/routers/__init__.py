@@ -76,7 +76,7 @@ router = APIRouter()
 for r in _routers:
     router.include_router(r)
 
-def exception_handler(rep, exception: Exception):
+def domain_exception_handler(rep, exception: Exception):
     exception_type = type(exception)
     if exception_type in map_exception:
         http_exception = map_exception[exception_type](str(exception))
@@ -92,5 +92,5 @@ def exception_handler(rep, exception: Exception):
 
 __all__ = [
     "router",
-    "exception_handler",
+    "domain_exception_handler",
 ]
