@@ -13,7 +13,7 @@ class DatabaseConfig(BaseSettings):
     )
     POSTGRES_DB: str = "cnlthd"
     POSTGRES_HOST: str = Field(
-        default="db", alias="POSTGRES_HOST", exclude=True, repr=False
+        default="localhost", alias="POSTGRES_HOST", exclude=True, repr=False
     )
     POSTGRES_PORT: str = Field(
         default="5432", alias="POSTGRES_PORT", exclude=True, repr=False
@@ -36,7 +36,7 @@ class RedisConfig(BaseSettings):
     )
 
     REDIS_HOST: str = Field(
-        default="redis", alias="REDIS_HOST", exclude=True, repr=False
+        default="localhost", alias="REDIS_HOST", exclude=True, repr=False
     )
     REDIS_PORT: str = Field(
         default="6379", alias="REDIS_PORT", exclude=True, repr=False
