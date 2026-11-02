@@ -96,14 +96,19 @@ class User(Base):
         return verify_password(password, self.hashed_password)
 
     async def async_hash_password(self, password: str) -> None:
-        self.hashed_password = await run_in_threadpool(get_password_hash,password)
+        self.hashed_password = await run_in_threadpool(get_password_hash, password)
 
     def hash_password(self, password: str) -> None:
         self.hashed_password = get_password_hash(password)
 
     def create_access_token(self, expires_delta: timedelta, sid: str | None) -> str:
         return create_access_token(
-            data={"sub": self.email, "role": self.role.name, "type": "access", "sid": sid},
+            data={
+                "sub": self.email,
+                "role": self.role.name,
+                "type": "access",
+                "sid": sid,
+            },
             expires_delta=expires_delta,
         )
 

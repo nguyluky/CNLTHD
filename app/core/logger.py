@@ -36,28 +36,27 @@ class JSONFormatter(logging.Formatter):
 
         return json.dumps(log_obj, default=str)
 
+
 class ColorFormatter(logging.Formatter):
-        COLORS = {
-            "DEBUG": "\033[36m",      # Cyan
-            "INFO": "\033[32m",       # Green
-            "WARNING": "\033[33m",    # Yellow
-            "ERROR": "\033[31m",      # Red
-            "CRITICAL": "\033[1;31m", # Bold Red
-        }
+    COLORS = {
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
+        "CRITICAL": "\033[1;31m",  # Bold Red
+    }
 
-        RESET = "\033[0m"
+    RESET = "\033[0m"
 
-        def format(self, record: logging.LogRecord):
-            original_levelname = record.levelname
+    def format(self, record: logging.LogRecord):
+        original_levelname = record.levelname
 
-            try:
-                color = self.COLORS.get(record.levelname, "")
-                record.levelname = (
-                    f"{color}{record.levelname}{self.RESET}"
-                )
-                return super().format(record)
-            finally:
-                record.levelname = original_levelname
+        try:
+            color = self.COLORS.get(record.levelname, "")
+            record.levelname = f"{color}{record.levelname}{self.RESET}"
+            return super().format(record)
+        finally:
+            record.levelname = original_levelname
 
 class SafeQueueHandler(QueueHandler):
     """
