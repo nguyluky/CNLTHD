@@ -249,12 +249,13 @@ async def test_reschedule_booking_with_owner_customer(
     customer_userA,
     session_factory,
     sample_booking_services,
-    sample_bookings
+    sample_bookings,
+    sample_barber_schedules
 ):
     booking = sample_bookings[0]
 
     payload = {
-        "start_time": "17:00:00",
+        "start_time": "16:00:00",
     }
 
     customer_client = await create_auth_client_for_user(customer_userA)
@@ -269,8 +270,8 @@ async def test_reschedule_booking_with_owner_customer(
     async with session_factory() as db:
         result =await db.scalar(select(Booking).where(Booking.id == booking.id))
         
-        assert str(result.start_time) == "17:00:00"
-        assert str(result.end_time) == "18:15:00"
+        assert str(result.start_time) == "16:00:00"
+        assert str(result.end_time) == "17:15:00"
 
 
 async def test_reschedule_booking_fail_with_not_found(
