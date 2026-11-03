@@ -2,6 +2,9 @@ import asyncio
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 
+from alembic import command
+from alembic.config import Config
+
 from app.core.logger import service_logger
 from app.core.database import (
     BarberSchedule,
@@ -104,10 +107,19 @@ async def reset_database():
     service_logger.warning("Clearing Database...")
 
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
+        def drop_business_tables(sync_conn):
+            tables_to_drop = [
+                table for table in Base.metadata.sorted_tables 
+                if table.name != "alembic_version"
+            ]
 
-    service_logger.info("Database cleared")
+            Base.metadata.drop_all(bind=sync_conn, tables=tables_to_drop)
+
+            Base.metadata.create_all(bind=sync_conn)
+
+        await conn.run_sync(drop_business_tables)
+
+    service_logger.info("Database reset & tables created successfully!")
 
 
 # =========================================================
