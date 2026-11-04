@@ -36,7 +36,7 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"])
 
 @router.get(
     "/{booking_id}",
-    summary="Returns booking detailss, the result varies based on the user's role.",
+    summary="Returns booking detail, the result varies based on the user's role.",
     response_model=BookingOut,
     status_code=status.HTTP_200_OK,
 )

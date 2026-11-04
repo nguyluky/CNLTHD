@@ -59,9 +59,6 @@ class BarberScheduleService:
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query) or 0
 
-        # if total == 0:
-        #     raise BarberScheduleNotFoundException("Barber Schedule Not Found")
-
         offset = (page - 1) * limit
         paginated_query = (
             query.offset(offset).limit(limit).order_by(BarberSchedule.id.desc())

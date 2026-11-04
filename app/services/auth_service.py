@@ -272,9 +272,6 @@ class AuthService:
         return session
 
     async def revoke_all_sessions_for_user(self, *, user: User):
-        await self.db.execute(
-            select(SessionToken).where(SessionToken.user_id == user.id)
-        )
         sessions = await self.db.scalars(
             select(SessionToken).where(SessionToken.user_id == user.id)
         )

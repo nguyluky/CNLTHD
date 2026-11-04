@@ -44,9 +44,6 @@ class BarberService:
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query) or 0
 
-        # if total == 0:
-        #     raise BarberNotFoundException("Barber not found")
-
         # pagination
         offset = (filter.page - 1) * filter.limit
         paginated_query = (
