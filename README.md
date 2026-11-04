@@ -55,7 +55,7 @@ Chỉ sử dụng `docker compose down -v` khi muốn xóa volume PostgreSQL c�
 ## Môi trường phát triển bằng Python
 
 Sử dụng cách này khi PostgreSQL và Redis đã chạy cục bộ hoặc đang chạy trong
-Docker Compose:
+Docker Container:
 
 ```bash
 python3.13 -m venv venv
