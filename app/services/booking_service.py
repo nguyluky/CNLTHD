@@ -158,9 +158,6 @@ class BookingService:
         count_query = select(func.count()).select_from(query.subquery())
         total = await self.db.scalar(count_query) or 0
 
-        # if total == 0:
-        #     raise BookingNotFoundException("Booking not found")
-
         offset = (page - 1) * limit
         paginated_query = (
             query.offset(offset).limit(limit).order_by(Booking.created_at.desc())
@@ -304,13 +301,8 @@ class BookingService:
         booking_date: date | None = None,
         start_time: time | None = None,
     ):
-        booking_services = (
-            await self.db.scalars(
-                select(BookingServiceModel).where(
-                    BookingServiceModel.booking_id == booking.id
-                )
-            )
-        ).all()
+
+        booking_services = booking.services
 
         total_duration = 0
         for bs in booking_services:
