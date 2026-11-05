@@ -172,8 +172,8 @@ class BarberSchedule(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     date_of_week: Mapped[int] = mapped_column(nullable=False)  # 0=Monday, 6=Sunday
-    start_time: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
-    end_time: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
+    start_time: Mapped[time] = mapped_column(Time(timezone=False), nullable=False)
+    end_time: Mapped[time] = mapped_column(Time(timezone=False), nullable=False)
 
     is_off: Mapped[bool] = mapped_column(nullable=False, default=False)
 
@@ -202,8 +202,8 @@ class Booking(Base):
     )
     booking_date: Mapped[date] = mapped_column(Date(), nullable=False)
 
-    start_time: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
-    end_time: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
+    start_time: Mapped[time] = mapped_column(Time(timezone=False), nullable=False)
+    end_time: Mapped[time] = mapped_column(Time(timezone=False), nullable=False)
 
     total_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     status: Mapped[BookingStatus] = mapped_column(SAEnum(BookingStatus), nullable=False)
