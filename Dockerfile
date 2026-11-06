@@ -13,11 +13,12 @@ RUN useradd --create-home appuser && chown appuser:appuser /app
 FROM base AS api
 
 COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser email_templates ./email_templates
+# tooi ngu quen dong nay
 USER appuser
 ENV ENV=production
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
 
 FROM base AS migration
 COPY --chown=appuser:appuser script ./script
