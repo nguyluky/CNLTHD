@@ -221,7 +221,7 @@ class AuthService:
                 "Refresh token has been revoked. Please login again."
             )
         
-        if session.expired_at < datetime.now():
+        if session.expired_at < datetime.now(timezone.utc):
             service_logger.error(
                 "Session's refresh token has expired",
                 extra={"session_id": session.id}
